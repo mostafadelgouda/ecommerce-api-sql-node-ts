@@ -1,39 +1,25 @@
-import express, { type Request, type Response } from "express";
+import express, { type NextFunction, type Request, type Response } from "express";
 import pool from './config/db.js';
-
+import ApiError from "./utils/apiError.js";
+import categoriesRouter from "./routers/categories.js"
+import userRouter from "./routers/users.js"
+import adminRouter from "./routers/admins.js"
+import productsRouter from "./routers/products.js"
+import productVariantsRouter from "./routers/product_variants.js"
+import passport from "./config/passport.js";
 const app = express();
 app.use(express.json())
+app.use(passport.initialize());
 const port = 3000;
+app.use('', userRouter);
+app.use('', adminRouter);
+app.use('/api/v1/categories', categoriesRouter);
+app.use('/api/v1/products', productsRouter);
+app.use('/api/v1/products', productVariantsRouter);
 
-app.get('/categories', async (req, res) => {
-    try {
-        const result = await pool.query('SELECT * FROM categories');
-        res.json(result.rows);
-    } catch (err) {
-        console.error(err);
-        res.status(500).send('Server error');
-    }
-});
-
-// Example: add new product
-app.post('/categories', async (req, res) => {
-    try {
-        const { name, type } = req.body;
-        const result = await pool.query(
-            'INSERT INTO categories (name, price) VALUES ($1, $2) RETURNING *',
-            [name, type]
-        );
-        res.json(result.rows[0]);
-    } catch (err) {
-        console.error(err);
-        res.status(500).send('Server error');
-    }
-});
-
-
-app.get("/", (req: Request, res: Response) => {
-    res.send("Hello, TypeScript + Express!");
-});
+// app.all('*', (req: Request, res: Response, next: NextFunction) => {
+//     return next(new ApiError(`Can't find this route: ${req.originalUrl}`, 400));
+// });
 
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
