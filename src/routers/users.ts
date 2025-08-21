@@ -1,29 +1,44 @@
-// import { type Response, Router } from "express";
-// import passport from 'passport';
-// import { getAllCategories } from "../controllers/categories.js"
-// export default function categoriesRouter(route: Router) {
-//     route
-//         .route("/categories")
-//         //.all(isAdmin)
-//         .get(getAllCategories)
-//     //.post(createNewChallengeforAdmin);
+import { type Response, Router } from "express";
+import passport from 'passport';
+import { login, signup } from "../controllers/users.js"
+import jwt from "jsonwebtoken";
 
-// }
+const router = Router();
+// router.route("/")
+//     //.all(isAdmin)
+//     .get()
+
+router.get(
+    "/auth/login",
+    login
+);
+router.get(
+    "/auth/signup",
+    signup
+);
+
+
+router.get(
+    "/auth/google",
+    passport.authenticate("google", { scope: ["profile", "email"] })
+);
+
+// Google callback
+router.get(
+    "/auth/google/callback",
+    passport.authenticate("google", { session: false, failureRedirect: "/" }),
+    (req, res) => {
+        const user = req.user as any;
+        const token = jwt.sign(
+            { id: user.id, email: user.email },
+            process.env.JWT_SECRET || "secret",
+            { expiresIn: "1d" }
+        );
+        res.json({ user, token });
+    }
+);
 
 
 
-// const router =
-//     // Google login route
-//     app.get('/auth/google',
-//         passport.authenticate('google', { scope: ['profile', 'email'] })
-//     );
+export default router;
 
-// // Callback route
-// app.get('/auth/google/callback',
-//     passport.authenticate('google', { failureRedirect: '/' }),
-//     (req, res) => {
-//         // Issue JWT
-//         const token = jwt.sign({ id: req.user.id, email: req.user.email }, 'SECRET_KEY');
-//         res.json({ token });
-//     }
-// );

@@ -13,8 +13,10 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
     "bcrypt": "^6.0.0",
+    "bcrypt-ts": "^7.1.0",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",

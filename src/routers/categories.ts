@@ -1,27 +1,13 @@
-import { type Response, Router } from "express";
-import passport from 'passport';
-import { getAllCategories } from "../controllers/categories.js"
+import { Router } from "express";
+import { createCategory, getCategories, getCategoryById, updateCategory, deleteCategory } from "../controllers/categories.js";
+import { isAdmin } from "../middlewares/isAdmin.js";
 
 const router = Router();
-router.route("/")
-    //.all(isAdmin)
-    .get(getAllCategories)
+
+router.post("/", isAdmin, createCategory);       // only admin
+router.get("/", getCategories);                 // public
+router.get("/:id", getCategoryById);            // public
+router.put("/:id", isAdmin, updateCategory);    // only admin
+router.delete("/:id", isAdmin, deleteCategory); // only admin
 
 export default router;
-
-
-// const router =
-//     // Google login route
-//     app.get('/auth/google',
-//         passport.authenticate('google', { scope: ['profile', 'email'] })
-//     );
-
-// // Callback route
-// app.get('/auth/google/callback',
-//     passport.authenticate('google', { failureRedirect: '/' }),
-//     (req, res) => {
-//         // Issue JWT
-//         const token = jwt.sign({ id: req.user.id, email: req.user.email }, 'SECRET_KEY');
-//         res.json({ token });
-//     }
-// );
