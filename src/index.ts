@@ -11,9 +11,9 @@ import stripeRouter from "./routers/stripe.js"
 import passport from "./config/passport.js";
 
 const app = express();
-app.use(express.json())
-app.use(passport.initialize());
-const port = 3000;
+// app.use(express.json())
+// app.use(passport.initialize());
+// const port = 3000;
 // app.use('', userRouter);
 // app.use('', adminRouter);
 // app.use('', stripeRouter);
