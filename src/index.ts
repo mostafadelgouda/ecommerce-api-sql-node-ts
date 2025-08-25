@@ -6,6 +6,7 @@ import productsRouter from "./routers/products.js"
 import productVariantsRouter from "./routers/product_variants.js"
 import paymentsRouter from "./routers/payments.js"
 import cartRouter from "./routers/cart.js"
+import wishlistRouter from "./routers/wishlist.js"
 import stripeRouter from "./routers/stripe.js"
 import passport from "./config/passport.js";
 
@@ -21,6 +22,7 @@ app.use('/api/v1/categories', categoriesRouter);
 app.use('/api/v1/products', productsRouter);
 app.use('/api/v1/products', productVariantsRouter);
 app.use('/api/v1/cart', cartRouter);
+app.use('/api/v1/wishlist', wishlistRouter);
 
 // app.all('*', (req: Request, res: Response, next: NextFunction) => {
 //     return next(new ApiError(`Can't find this route: ${req.originalUrl}`, 400));

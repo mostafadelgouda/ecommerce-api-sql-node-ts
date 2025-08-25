@@ -60,28 +60,47 @@ export const updateCartItem = async (req: Request, res: Response) => {
     const user = (req as any).user;
     const { quantity } = req.body;
     const cart_item_id = req.params.id;
+
     if (!cart_item_id || quantity == null) {
         return res.status(400).json({ message: "Cart item ID and quantity are required" });
     }
 
     try {
-        const result = await pool.query(
-            `UPDATE cart_items
-       SET quantity = $1
-       WHERE user_id = $2 AND cart_item_id = $3
-       RETURNING *`,
-            [quantity, user.user_id, cart_item_id]
-        );
+        if (quantity === 0) {
+            // ✅ Remove the cart item instead of updating
+            const deleteResult = await pool.query(
+                `DELETE FROM cart_items
+                 WHERE user_id = $1 AND cart_item_id = $2
+                 RETURNING *`,
+                [user.user_id, cart_item_id]
+            );
 
-        if (result.rows.length === 0) {
-            return res.status(404).json({ message: "Cart item not found" });
+            if (deleteResult.rows.length === 0) {
+                return res.status(404).json({ message: "Cart item not found" });
+            }
+
+            return res.json({ message: "Cart item removed successfully" });
+        } else {
+            // ✅ Update quantity
+            const updateResult = await pool.query(
+                `UPDATE cart_items
+                 SET quantity = $1
+                 WHERE user_id = $2 AND cart_item_id = $3
+                 RETURNING *`,
+                [quantity, user.user_id, cart_item_id]
+            );
+
+            if (updateResult.rows.length === 0) {
+                return res.status(404).json({ message: "Cart item not found" });
+            }
+
+            return res.json(updateResult.rows[0]);
         }
-
-        res.json(result.rows[0]);
     } catch (err: any) {
         res.status(500).json({ message: "Error updating cart item", error: err.message });
     }
 };
+
 
 // Remove item from cart
 export const removeCartItem = async (req: Request, res: Response) => {
@@ -103,5 +122,26 @@ export const removeCartItem = async (req: Request, res: Response) => {
         res.json({ message: "Item removed from cart" });
     } catch (err: any) {
         res.status(500).json({ message: "Error removing cart item", error: err.message });
+    }
+};
+
+export const clearCart = async (req: Request, res: Response) => {
+    const user = (req as any).user;
+
+    try {
+        const result = await pool.query(
+            `DELETE FROM cart_items 
+             WHERE user_id = $1 
+             RETURNING *`,
+            [user.user_id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: "Cart is already empty" });
+        }
+
+        res.json({ message: "All items removed from cart", removed: result.rows.length });
+    } catch (err: any) {
+        res.status(500).json({ message: "Error clearing cart", error: err.message });
     }
 };
