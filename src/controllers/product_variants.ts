@@ -4,12 +4,12 @@ import pool from "../config/db.js";
 // CREATE variant
 export const createVariant = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { product_id, size, color, stock } = req.body;
-
+        const { size, color, stock } = req.body;
+        const product_id = req.params.productId || '3'
         const result = await pool.query(
-            `INSERT INTO product_variants (product_id, size, color, stock)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-            [product_id, size, color, stock || 0]
+            `INSERT INTO product_variants (product_id, size, color, stock, sold)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+            [product_id, size, color, stock || 0, 0]
         );
 
         res.status(201).json(result.rows[0]);
@@ -23,6 +23,7 @@ export const getVariantsByProduct = async (req: Request, res: Response, next: Ne
     try {
         const { productId } = req.params;
         const result = await pool.query("SELECT * FROM product_variants WHERE product_id = $1", [productId]);
+
         res.json(result.rows);
     } catch (err) {
         next(err);

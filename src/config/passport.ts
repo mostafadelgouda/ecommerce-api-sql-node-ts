@@ -6,7 +6,7 @@ import pool from './db.js'; // import your database connection
 export default passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID || "",      // use .env, not hardcode
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
-    callbackURL: "/auth/google/callback"
+    callbackURL: process.env.GOOGLE_CALLBACK_URL || "/auth/google/callback"
 }, async (accessToken, refreshToken, profile, done) => {
     try {
         let email = profile?.emails?.[0]?.value || "";
