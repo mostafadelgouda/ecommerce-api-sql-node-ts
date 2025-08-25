@@ -26,7 +26,5 @@ app.use('/api/v1/wishlist', wishlistRouter);
 // app.all('*', (req: Request, res: Response, next: NextFunction) => {
 //     return next(new ApiError(`Can't find this route: ${req.originalUrl}`, 400));
 // });
-
-app.listen(parseInt(process.env.PORT || "8080"), () => {
-    console.log(`Server running at http://localhost:${parseInt(process.env.PORT || "8080")}`);
-});
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
