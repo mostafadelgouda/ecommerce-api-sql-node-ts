@@ -13,7 +13,6 @@ import passport from "./config/passport.js";
 const app = express();
 app.use(express.json())
 app.use(passport.initialize());
-const port = 3000;
 app.use('', userRouter);
 app.use('', adminRouter);
 app.use('', stripeRouter);
@@ -28,6 +27,6 @@ app.use('/api/v1/wishlist', wishlistRouter);
 //     return next(new ApiError(`Can't find this route: ${req.originalUrl}`, 400));
 // });
 
-app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+app.listen(parseInt(process.env.PORT || "8080"), () => {
+    console.log(`Server running at http://localhost:${parseInt(process.env.PORT || "8080")}`);
 });
