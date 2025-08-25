@@ -1,14 +1,16 @@
 import express, { type NextFunction, type Request, type Response } from "express";
-import categoriesRouter from "./routers/categories.js"
-import userRouter from "./routers/users.js"
-import adminRouter from "./routers/admins.js"
-import productsRouter from "./routers/products.js"
-import productVariantsRouter from "./routers/product_variants.js"
-import paymentsRouter from "./routers/payments.js"
-import cartRouter from "./routers/cart.js"
-import wishlistRouter from "./routers/wishlist.js"
-import stripeRouter from "./routers/stripe.js"
-import passport from "./config/passport.js";
+import dotenv from "dotenv";
+dotenv.config();
+// import categoriesRouter from "./routers/categories.js"
+// import userRouter from "./routers/users.js"
+// import adminRouter from "./routers/admins.js"
+// import productsRouter from "./routers/products.js"
+// import productVariantsRouter from "./routers/product_variants.js"
+// import paymentsRouter from "./routers/payments.js"
+// import cartRouter from "./routers/cart.js"
+// import wishlistRouter from "./routers/wishlist.js"
+// import stripeRouter from "./routers/stripe.js"
+// import passport from "./config/passport.js";
 
 const app = express();
 // app.use(express.json())
