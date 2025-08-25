@@ -24,7 +24,7 @@ export const paymentSuccess = async (req: Request, res: Response) => {
         // 2️⃣ Get items from user's cart
         const cartItems = await pool.query(
             `SELECT c.product_variant_id, c.quantity, pv.price
-       FROM cart c
+       FROM cart_items c
        JOIN product_variants pv ON c.product_variant_id = pv.id
        WHERE c.user_id = $1`,
             [user_id]
@@ -53,7 +53,7 @@ export const paymentSuccess = async (req: Request, res: Response) => {
         }
 
         // 5️⃣ Clear cart
-        await pool.query(`DELETE FROM cart WHERE user_id = $1`, [user_id]);
+        await pool.query(`DELETE FROM cart_items WHERE user_id = $1`, [user_id]);
 
         res.json({ message: "Payment successful, order created", orderId });
     } catch (err: any) {

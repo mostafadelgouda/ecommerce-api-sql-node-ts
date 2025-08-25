@@ -10,45 +10,100 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
 
 const router = Router();
 
-// ✅ Create Payment Intent
-router.post("/create-payment-intent", async (req: Request, res: Response) => {
-    try {
-        const { amount, currency, orderId } = req.body;
+// // ✅ Create Payment Intent
+// router.post("/create-payment-intent", async (req: Request, res: Response) => {
+//     try {
+//         const { amount, currency, orderId } = req.body;
 
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount, // in cents (e.g., 2000 = $20)
-            currency,
-            metadata: { orderId },
-        });
+//         const paymentIntent = await stripe.paymentIntents.create({
+//             amount, // in cents (e.g., 2000 = $20)
+//             currency,
+//             metadata: { orderId },
+//         });
 
-        res.json({
-            clientSecret: paymentIntent.client_secret,
-        });
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+//         res.json({
+//             clientSecret: paymentIntent.client_secret,
+//         });
+//     } catch (error: any) {
+//         res.status(500).json({ error: error.message });
+//     }
+// });
+
+// ✅ Webhook to confirm payment and create order
+router.post(
+    "/webhook", isAuthenticated,
+    express.raw({ type: "application/json" }),
+    async (req: Request, res: Response) => {
+        const sig = req.headers["stripe-signature"];
+        let event;
+
+        try {
+            event = stripe.webhooks.constructEvent(
+                req.body,
+                sig!,
+                process.env.STRIPE_WEBHOOK_SECRET as string
+            );
+        } catch (err: any) {
+            return res.status(400).send(`Webhook Error: ${err.message}`);
+        }
+
+        if (event.type === "checkout.session.completed") {
+            const session = event.data.object as Stripe.Checkout.Session;
+
+            try {
+                // ✅ Get user_id from metadata
+                const user_id = session.metadata?.user_id;
+                if (!user_id) {
+                    console.error("⚠️ No user_id in session metadata");
+                    return res.json({ received: true });
+                }
+
+                // 1️⃣ Get items from cart
+                const cartItems = await pool.query(
+                    `SELECT c.variant_id, c.quantity, pv.price
+           FROM cart_items c
+           JOIN product_variants pv ON c.product_variant_id = pv.id
+           WHERE c.user_id = $1`,
+                    [user_id]
+                );
+
+                if (cartItems.rows.length === 0) {
+                    console.error("⚠️ Cart is empty for user", user_id);
+                    return res.json({ received: true });
+                }
+
+                // 2️⃣ Create order
+                const orderResult = await pool.query(
+                    `INSERT INTO orders (user_id, total, status, payment_status)
+           VALUES ($1, $2, 'pending', 'paid')
+           RETURNING id`,
+                    [user_id, session.amount_total ? session.amount_total / 100 : 0]
+                );
+
+                const orderId = orderResult.rows[0].id;
+
+                // 3️⃣ Insert order_items
+                for (const item of cartItems.rows) {
+                    await pool.query(
+                        `INSERT INTO order_items (order_id, variant_id, quantity, price)
+             VALUES ($1, $2, $3, $4)`,
+                        [orderId, item.variant_id, item.quantity, item.price]
+                    );
+                }
+
+                // 4️⃣ Clear cart
+                await pool.query(`DELETE FROM cart_items WHERE user_id = $1`, [user_id]);
+
+                console.log(`✅ Order ${orderId} created & cart cleared for user ${user_id}`);
+            } catch (err: any) {
+                console.error("❌ Error processing order:", err.message);
+            }
+        }
+
+        res.json({ received: true });
     }
-});
+);
 
-// ✅ Webhook to confirm payment
-router.post("/webhook", express.raw({ type: "application/json" }), (req, res) => {
-    const sig = req.headers["stripe-signature"];
-    let event;
-
-    try {
-        event = stripe.webhooks.constructEvent(req.body, sig!, process.env.STRIPE_WEBHOOK_SECRET as string);
-    } catch (err: any) {
-        return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
-
-    if (event.type === "payment_intent.succeeded") {
-        const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        console.log("✅ Payment succeeded:", paymentIntent.id);
-
-        // TODO: update order status in DB to "paid"
-    }
-
-    res.json({ received: true });
-});
 
 // router.post("/create-checkout-session", async (req: Request, res: Response) => {
 //     try {
@@ -104,12 +159,13 @@ router.post("/create-checkout-session", isAuthenticated, async (req: Request, re
                 price_data: {
                     currency: "usd",
                     product_data: { name: item.name },
-                    unit_amount: item.price * 100, // Stripe uses cents
+                    unit_amount: item.price * 100,
                 },
                 quantity: item.quantity,
             })),
             success_url: `${process.env.CLIENT_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${process.env.CLIENT_URL}/cancel`,
+            metadata: { user_id: userId.toString() }, // ✅ pass user_id
         });
 
         // 3. Return checkout link
