@@ -31,7 +31,7 @@ const router = Router();
 
 // ✅ Webhook to confirm payment and create order
 router.post(
-    "/webhook", isAuthenticated,
+    "/webhook",
     express.raw({ type: "application/json" }),
     async (req: Request, res: Response) => {
         const sig = req.headers["stripe-signature"];
