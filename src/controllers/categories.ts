@@ -1,5 +1,7 @@
 import { type Request, type Response } from "express";
 import pool from "../config/db.js"; // your pg Pool connection
+import { getItemsWithFilters } from "../utils/filterPagination.js"
+import { RESPONSE_MESSAGES } from "../constants/messages.js";
 
 // CREATE Category
 export const createCategory = async (req: Request, res: Response) => {
@@ -18,8 +20,32 @@ export const createCategory = async (req: Request, res: Response) => {
 // READ all Categories
 export const getCategories = async (req: Request, res: Response) => {
     try {
-        const result = await pool.query("SELECT * FROM categories ORDER BY category_id");
-        res.json(result.rows);
+
+        const { page = 1, limit = 10 } = req.query;
+
+        const filters: Record<string, any> = {};
+        // if (category) filters.category_id = category;
+        // if (min_price) filters.price = `>= ${min_price}`; // can extend to operators
+        // if (max_price) filters.price = `<= ${max_price}`;
+
+        const result = await getItemsWithFilters(
+            "categories",
+            filters,
+            Number(page),
+            Number(limit),
+            "created_at",
+            "DESC"
+        );
+        //const result = await pool.query("SELECT * FROM products ORDER BY created_at DESC");
+        res.json({
+            message: RESPONSE_MESSAGES.PRODUCT.RETRIEVED,
+            page: page,                // current page
+            total_items: result.number_of_items, // number of items in this query
+            limit: limit,               // how many items per page
+            data: result.data
+        });
+        //const result = await pool.query("SELECT * FROM categories ORDER BY category_id");
+        //res.json(result.rows);
     } catch (err: any) {
         res.status(500).json({ message: err.message });
     }

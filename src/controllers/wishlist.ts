@@ -1,5 +1,7 @@
 import { type Request, type Response } from "express";
 import pool from "../config/db.js";
+import { getItemsWithFilters } from "../utils/filterPagination.js"
+import { RESPONSE_MESSAGES } from "../constants/messages.js";
 
 // Add to wishlist
 export const addToWishlist = async (req: Request, res: Response) => {
@@ -26,7 +28,6 @@ export const addToWishlist = async (req: Request, res: Response) => {
     }
 };
 
-// Get wishlist
 // Get wishlist
 export const getWishlist = async (req: Request, res: Response) => {
     try {
