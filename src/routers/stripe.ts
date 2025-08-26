@@ -34,69 +34,94 @@ router.post(
     "/webhook",
     express.raw({ type: "application/json" }),
     async (req: Request, res: Response) => {
-        const sig = req.headers["stripe-signature"];
-        let event;
+        const sig = req.headers["stripe-signature"] as string;
 
+        let event: Stripe.Event;
         try {
             event = stripe.webhooks.constructEvent(
                 req.body,
-                sig!,
+                sig,
                 process.env.STRIPE_WEBHOOK_SECRET as string
             );
         } catch (err: any) {
+            console.error("⚠️ Webhook signature verification failed.", err.message);
             return res.status(400).send(`Webhook Error: ${err.message}`);
         }
 
+        // Handle successful checkout session
         if (event.type === "checkout.session.completed") {
             const session = event.data.object as Stripe.Checkout.Session;
+            const userId = session.metadata?.user_id;
+
+
+            console.log("✅ Payment success for user:", userId);
+
+            if (!userId) {
+                console.error("No userId in session metadata");
+                return res.status(400).send("No userId in session metadata");
+            }
 
             try {
-                // ✅ Get user_id from metadata
-                const user_id = session.metadata?.user_id;
-                if (!user_id) {
-                    console.error("⚠️ No user_id in session metadata");
+                // 1️⃣ Get cart items for this user
+                // 1️⃣ Get cart items for this user (with product price)
+                const { rows: cartItems } = await pool.query(
+                    `
+                    SELECT 
+                        ci.cart_item_id,
+                        ci.user_id,
+                        ci.variant_id,
+                        ci.quantity,
+                        ci.product_id,
+                        p.price,               -- ✅ get product price
+                        pv.size,
+                        pv.color,
+                        pv.stock,
+                        pv.sold
+                    FROM cart_items ci
+                    JOIN product_variants pv ON ci.variant_id = pv.variant_id
+                    JOIN products p ON ci.product_id = p.product_id
+                    WHERE ci.user_id = $1;
+                    `,
+                    [userId]
+                );
+
+                if (cartItems.length === 0) {
+                    console.log("Cart is empty, skipping order creation");
                     return res.json({ received: true });
                 }
 
-                // 1️⃣ Get items from cart
-                const cartItems = await pool.query(
-                    `SELECT c.variant_id, c.quantity, pv.price
-           FROM cart_items c
-           JOIN product_variants pv ON c.product_variant_id = pv.id
-           WHERE c.user_id = $1`,
-                    [user_id]
+                // 2️⃣ Insert order
+                const { rows: orderRows } = await pool.query(
+                    `INSERT INTO orders (user_id, total_amount, status) 
+           VALUES ($1, $2, $3) RETURNING order_id`,
+                    [userId, session.amount_total! / 100, "paid"]
                 );
 
-                if (cartItems.rows.length === 0) {
-                    console.error("⚠️ Cart is empty for user", user_id);
-                    return res.json({ received: true });
-                }
+                const orderId = orderRows[0].order_id;
 
-                // 2️⃣ Create order
-                const orderResult = await pool.query(
-                    `INSERT INTO orders (user_id, total, status, payment_status)
-           VALUES ($1, $2, 'pending', 'paid')
-           RETURNING id`,
-                    [user_id, session.amount_total ? session.amount_total / 100 : 0]
-                );
-
-                const orderId = orderResult.rows[0].id;
-
-                // 3️⃣ Insert order_items
-                for (const item of cartItems.rows) {
+                // 3️⃣ Insert order items & update stock
+                for (const item of cartItems) {
                     await pool.query(
-                        `INSERT INTO order_items (order_id, variant_id, quantity, price)
-             VALUES ($1, $2, $3, $4)`,
-                        [orderId, item.variant_id, item.quantity, item.price]
+                        `INSERT INTO order_items (order_id, product_id, variant_id, quantity, price) 
+                        VALUES ($1, $2, $3, $4, $5)`,
+                        [orderId, item.product_id, item.variant_id, item.quantity, item.price]
+                    );
+
+                    await pool.query(
+                        `UPDATE product_variants 
+             SET stock = stock - $1, sold = sold + $1
+             WHERE variant_id = $2`,
+                        [item.quantity, item.variant_id]
                     );
                 }
 
                 // 4️⃣ Clear cart
-                await pool.query(`DELETE FROM cart_items WHERE user_id = $1`, [user_id]);
+                await pool.query(`DELETE FROM cart_items WHERE user_id = $1`, [userId]);
 
-                console.log(`✅ Order ${orderId} created & cart cleared for user ${user_id}`);
-            } catch (err: any) {
-                console.error("❌ Error processing order:", err.message);
+                console.log("✅ Order created and cart cleared for user:", userId);
+            } catch (err) {
+                console.error("❌ Error processing order:", err);
+                return res.status(500).send("Error processing order");
             }
         }
 

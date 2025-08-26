@@ -13,12 +13,12 @@ import stripeRouter from "./routers/stripe.js"
 import passport from "./config/passport.js";
 
 const app = express();
+app.use('', stripeRouter);
 app.use(express.json())
 app.use(passport.initialize());
 const port = 3000;
 app.use('', userRouter);
 app.use('', adminRouter);
-app.use('', stripeRouter);
 app.use('', paymentsRouter);
 app.use('/api/v1/categories', categoriesRouter);
 app.use('/api/v1/products', productsRouter);
