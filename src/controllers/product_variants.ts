@@ -1,6 +1,7 @@
 import { type Request, type Response, type NextFunction } from "express";
 import pool from "../config/db.js";
-
+import { getItemsWithFilters } from "../utils/filterPagination.js"
+import { RESPONSE_MESSAGES } from "../constants/messages.js";
 // CREATE variant
 export const createVariant = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -61,6 +62,66 @@ export const deleteVariant = async (req: Request, res: Response, next: NextFunct
         const result = await pool.query("DELETE FROM product_variants WHERE variant_id = $1 RETURNING *", [id]);
         if (result.rows.length === 0) return res.status(404).json({ message: "Variant not found" });
         res.json({ message: "Variant deleted" });
+    } catch (err) {
+        next(err);
+    }
+};
+
+export const addVariantImage = async (req: Request, res: Response) => {
+    try {
+        const { image_url, is_main = false } = req.body;
+        const variant_id = req.params.variant_id
+        if (!image_url) {
+            return res.status(400).json({ message: "Image URL is required" });
+        }
+
+        // If the new image is marked as main, reset all other images for that product (and variant if applicable)
+        if (is_main) {
+
+            await pool.query(
+                `UPDATE variant_images 
+                    SET is_main = false 
+                    WHERE variant_id = $1`,
+                [variant_id]
+            );
+
+        }
+
+        const result = await pool.query(
+            `INSERT INTO variant_images (variant_id, image_url, is_main) 
+             VALUES ($1, $2, $3) 
+             RETURNING *`,
+            [variant_id || null, image_url, is_main]
+        );
+
+        res.status(201).json(result.rows[0]);
+    } catch (err: any) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+
+export const getVariantImages = async (req: Request, res: Response) => {
+    try {
+        const { variant_id } = req.params;
+
+        const result = await pool.query(
+            `SELECT * FROM variant_images WHERE variant_id = $1 ORDER BY created_at DESC`,
+            [variant_id]
+        );
+
+        res.json(result.rows);
+    } catch (err: any) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
+export const deleteVariantImage = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { image_id } = req.params;
+        const result = await pool.query("DELETE FROM variant_images WHERE image_id = $1 RETURNING *", [image_id]);
+        if (result.rows.length === 0) return res.status(404).json({ message: "Image not found" });
+        res.json({ message: "Image deleted" });
     } catch (err) {
         next(err);
     }

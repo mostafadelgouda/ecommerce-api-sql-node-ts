@@ -1,12 +1,10 @@
 import express, { type NextFunction, type Request, type Response } from "express";
-import dotenv from "dotenv";
-dotenv.config();
 import categoriesRouter from "./routers/categories.js"
 import userRouter from "./routers/users.js"
 import adminRouter from "./routers/admins.js"
 import productsRouter from "./routers/products.js"
+import reviewsRouter from "./routers/reviews.js"
 import productVariantsRouter from "./routers/product_variants.js"
-import paymentsRouter from "./routers/payments.js"
 import cartRouter from "./routers/cart.js"
 import wishlistRouter from "./routers/wishlist.js"
 import stripeRouter from "./routers/stripe.js"
@@ -19,12 +17,12 @@ app.use(passport.initialize());
 const port = 3000;
 app.use('', userRouter);
 app.use('', adminRouter);
-app.use('', paymentsRouter);
 app.use('/api/v1/categories', categoriesRouter);
 app.use('/api/v1/products', productsRouter);
 app.use('/api/v1/products', productVariantsRouter);
 app.use('/api/v1/cart', cartRouter);
-app.use('/api/v1/wishlist', cartRouter);
+app.use('/api/v1/wishlist', wishlistRouter);
+app.use('/api/v1/reviews', reviewsRouter);
 
 app.get("/", (req, res) => {
     res.send("🚀 Server is alive");
