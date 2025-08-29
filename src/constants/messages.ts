@@ -26,5 +26,8 @@ export const RESPONSE_MESSAGES = {
         CREATED: "Review created successfully",
         UPDATED: "Review updated successfully",
         DELETED: "Review deleted successfully",
+    },
+    ORDER: {
+        RETRIEVED: "Orders retrieved successfully",
     }
 } as const;

@@ -1,7 +1,8 @@
 import { type Response, Router } from "express";
 import passport from 'passport';
-import { login, signup } from "../controllers/users.js"
+import { login, signup, getUserDetails, changePassword, forgotPassword, resetPassword } from "../controllers/users.js"
 import jwt from "jsonwebtoken";
+import { isAuthenticated } from "../middlewares/isAuth.js";
 
 const router = Router();
 // router.route("/")
@@ -13,8 +14,26 @@ router.get(
     login
 );
 router.get(
+    "/auth/changePassword",
+    isAuthenticated,
+    changePassword
+);
+router.get(
     "/auth/signup",
     signup
+);
+router.get(
+    "/auth/forgotPassword",
+    forgotPassword
+);
+router.get(
+    "/auth/resetPassword",
+    resetPassword
+);
+router.get(
+    "/getUserDetails",
+    isAuthenticated,
+    getUserDetails
 );
 
 

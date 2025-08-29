@@ -5,6 +5,7 @@ import adminRouter from "./routers/admins.js"
 import productsRouter from "./routers/products.js"
 import reviewsRouter from "./routers/reviews.js"
 import productVariantsRouter from "./routers/product_variants.js"
+import orderesRouter from "./routers/orders.js"
 import cartRouter from "./routers/cart.js"
 import wishlistRouter from "./routers/wishlist.js"
 import stripeRouter from "./routers/stripe.js"
@@ -23,6 +24,8 @@ app.use('/api/v1/products', productVariantsRouter);
 app.use('/api/v1/cart', cartRouter);
 app.use('/api/v1/wishlist', wishlistRouter);
 app.use('/api/v1/reviews', reviewsRouter);
+app.use('/api/v1/orders', orderesRouter);
+
 
 app.get("/", (req, res) => {
     res.send("🚀 Server is alive");
