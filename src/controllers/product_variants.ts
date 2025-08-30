@@ -1,7 +1,7 @@
 import { type Request, type Response, type NextFunction } from "express";
 import pool from "../config/db.js";
 import { getItemsWithFilters } from "../utils/filterPagination.js"
-import { RESPONSE_MESSAGES } from "../constants/messages.js";
+import { RESPONSE_MESSAGES } from "../constants/responseMessages.js";
 // CREATE variant
 export const createVariant = async (req: Request, res: Response, next: NextFunction) => {
     try {
