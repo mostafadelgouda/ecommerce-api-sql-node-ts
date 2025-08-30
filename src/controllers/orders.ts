@@ -1,6 +1,6 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { getItemsWithFilters } from "../utils/filterPagination.js";
-import { RESPONSE_MESSAGES } from "../constants/messages.js";
+import { RESPONSE_MESSAGES } from "../constants/responseMessages.js";
 import pool from "../config/db.js";
 // ✅ Admin: Get all done orders with pagination + filters
 export const getAllOrders = async (req: Request, res: Response, next: NextFunction) => {

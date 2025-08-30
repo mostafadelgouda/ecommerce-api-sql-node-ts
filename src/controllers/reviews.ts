@@ -1,6 +1,6 @@
 import { type Request, type Response, type NextFunction } from "express";
 import pool from "../config/db.js";
-import { RESPONSE_MESSAGES } from "../constants/messages.js";
+import { RESPONSE_MESSAGES } from "../constants/responseMessages.js";
 
 // CREATE review
 export const createReview = async (req: Request, res: Response, next: NextFunction) => {
