@@ -1,5 +1,6 @@
 import { type Request, type Response, type NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import ApiError from "../utils/apiError.js";
 
 interface JwtPayload {
     user_id: number;
@@ -15,11 +16,11 @@ export const isAdmin = (req: Request, res: Response, next: NextFunction) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as unknown as JwtPayload;
         console.log(decoded);
         if (decoded.role !== "admin") {
-            return res.status(403).json({ message: "Access denied: Admins only" });
+            return next(new ApiError("Access denied: Admins only", 403));
         }
-        (req as any).user = decoded; // save user to request
+        (req as any).user = decoded;
         next();
-    } catch (err) {
-        return res.status(401).json({ message: "Invalid token" });
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.code));
     }
 };

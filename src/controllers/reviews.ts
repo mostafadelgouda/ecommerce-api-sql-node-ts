@@ -1,14 +1,15 @@
 import { type Request, type Response, type NextFunction } from "express";
 import pool from "../config/db.js";
+import ApiError from "../utils/apiError.js";
 import { RESPONSE_MESSAGES } from "../constants/responseMessages.js";
 
-// CREATE review
 export const createReview = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { product_id } = req.params;
         const { rating, comment } = req.body;
         const user = (req as any).user;
-        if (!rating) return res.status(400).json({ message: "Rating is required" });
+
+        if (!rating) return next(new ApiError(RESPONSE_MESSAGES.REVIEW.RATING_REQUIRED, 400));
 
         const result = await pool.query(
             `INSERT INTO reviews (product_id, user_id, rating, comment)
@@ -21,12 +22,11 @@ export const createReview = async (req: Request, res: Response, next: NextFuncti
             message: RESPONSE_MESSAGES.REVIEW.CREATED,
             data: result.rows[0],
         });
-    } catch (err) {
-        next(err);
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode));
     }
 };
 
-// READ all reviews for a product
 export const getProductReviews = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { product_id } = req.params;
@@ -45,17 +45,17 @@ export const getProductReviews = async (req: Request, res: Response, next: NextF
             total: result.rows.length,
             data: result.rows,
         });
-    } catch (err) {
-        next(err);
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode));
     }
 };
 
-// UPDATE review
 export const updateReview = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { review_id } = req.params;
         const { rating, comment } = req.body;
         const user = (req as any).user;
+
         const result = await pool.query(
             `UPDATE reviews
              SET rating = $1, comment = $2
@@ -65,23 +65,23 @@ export const updateReview = async (req: Request, res: Response, next: NextFuncti
         );
 
         if (result.rows.length === 0) {
-            return res.status(404).json({ message: "Review not found or not authorized" });
+            return next(new ApiError(RESPONSE_MESSAGES.REVIEW.NOT_FOUND_OR_UNAUTHORIZED, 404));
         }
 
         res.json({
             message: RESPONSE_MESSAGES.REVIEW.UPDATED,
             data: result.rows[0],
         });
-    } catch (err) {
-        next(err);
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode));
     }
 };
 
-// DELETE review
 export const deleteReview = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { review_id } = req.params;
         const user = (req as any).user;
+
         const result = await pool.query(
             `DELETE FROM reviews
              WHERE review_id = $1 AND user_id = $2
@@ -90,11 +90,11 @@ export const deleteReview = async (req: Request, res: Response, next: NextFuncti
         );
 
         if (result.rows.length === 0) {
-            return res.status(404).json({ message: "Review not found or not authorized" });
+            return next(new ApiError(RESPONSE_MESSAGES.REVIEW.NOT_FOUND_OR_UNAUTHORIZED, 404));
         }
 
         res.json({ message: RESPONSE_MESSAGES.REVIEW.DELETED });
-    } catch (err) {
-        next(err);
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode));
     }
 };

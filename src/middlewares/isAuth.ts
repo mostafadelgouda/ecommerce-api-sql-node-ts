@@ -16,7 +16,7 @@ export const isAuthenticated = (req: Request, res: Response, next: NextFunction)
     const token = authHeader.split(" ")[1] || "invalid token";
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as JwtPayload;
-        (req as any).user = decoded; // attach user payload to request
+        (req as any).user = decoded;
         next();
     } catch (err: any) {
         return next(new ApiError(err.message, err.code));

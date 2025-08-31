@@ -6,11 +6,10 @@ import {
 
 
 
-import { isAdmin } from "../middlewares/isAdmin.js"; // middleware to check admin role
+import { isAdmin } from "../middlewares/isAdmin.js";
 
 const router = Router();
 
-// products
 router.post("/", isAdmin, createProduct);
 router.get("/", getProducts);
 router.get("/:id", getProductById);

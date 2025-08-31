@@ -50,7 +50,7 @@ export async function login(req: Request, res: Response, next: NextFunction) {
         });
         res.json({ message: RESPONSE_MESSAGES.AUTH.LOGIN_SUCCESS, data: { user: { user_id: user.user_id, email: user.email, name: user.name }, token } });
     } catch (err: any) {
-        return next(new ApiError(err.message, err.code));
+        return next(new ApiError(err.message, err.statusCode));
     }
 }
 export async function loginGoogle(req: Request, res: Response, next: NextFunction) {
@@ -63,7 +63,7 @@ export async function loginGoogle(req: Request, res: Response, next: NextFunctio
         );
         res.json({ message: RESPONSE_MESSAGES.AUTH.LOGIN_SUCCESS, data: { user, token } });
     } catch (err: any) {
-        return next(new ApiError(err.message, err.code));
+        return next(new ApiError(err.message, err.statusCode));
     }
 }
 
@@ -75,7 +75,7 @@ export async function getUserDetails(req: Request, res: Response, next: NextFunc
         const { password, ...userWithoutPassword } = result.rows[0];
         res.json({ message: RESPONSE_MESSAGES.AUTH.DETAILS_RETRIEVED, data: userWithoutPassword });
     } catch (err: any) {
-        return next(new ApiError(err.message, err.code));
+        return next(new ApiError(err.message, err.statusCode));
     }
 }
 
@@ -100,11 +100,10 @@ export const forgotPassword = async (req: Request, res: Response, next: NextFunc
         res.json({ message: RESPONSE_MESSAGES.AUTH.RESET_CODE_SENT });
     }
     catch (err: any) {
-        return next(new ApiError(err.message, err.code));
+        return next(new ApiError(err.message, err.statusCode));
     }
 };
 
-// Step 2: Reset password
 export const resetPassword = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { email, code, newPassword } = req.body;
@@ -129,7 +128,7 @@ export const resetPassword = async (req: Request, res: Response, next: NextFunct
         res.json({ message: RESPONSE_MESSAGES.AUTH.PASSWORD_CHANGED });
     }
     catch (err: any) {
-        return next(new ApiError(err.message, err.code));
+        return next(new ApiError(err.message, err.statusCode));
     }
 
 };
@@ -152,6 +151,6 @@ export async function changePassword(req: Request, res: Response, next: NextFunc
 
         res.json({ message: RESPONSE_MESSAGES.AUTH.PASSWORD_CHANGED });
     } catch (err: any) {
-        return next(new ApiError(err.message, err.code));
+        return next(new ApiError(err.message, err.statusCode));
     }
 }

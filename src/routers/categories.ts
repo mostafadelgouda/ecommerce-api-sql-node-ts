@@ -4,10 +4,10 @@ import { isAdmin } from "../middlewares/isAdmin.js";
 
 const router = Router();
 
-router.post("/", isAdmin, createCategory);       // only admin
-router.get("/", getCategories);                 // public
-router.get("/:id", getCategoryById);            // public
-router.put("/:id", isAdmin, updateCategory);    // only admin
-router.delete("/:id", isAdmin, deleteCategory); // only admin
+router.post("/", isAdmin, createCategory);
+router.get("/", getCategories);
+router.get("/:id", getCategoryById);
+router.put("/:id", isAdmin, updateCategory);
+router.delete("/:id", isAdmin, deleteCategory);
 
 export default router;

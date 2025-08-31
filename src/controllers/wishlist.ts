@@ -1,41 +1,43 @@
-import { type Request, type Response } from "express";
+import { type Request, type Response, type NextFunction } from "express";
 import pool from "../config/db.js";
-import { getItemsWithFilters } from "../utils/filterPagination.js"
+import ApiError from "../utils/apiError.js";
 import { RESPONSE_MESSAGES } from "../constants/responseMessages.js";
 
-// Add to wishlist
-export const addToWishlist = async (req: Request, res: Response) => {
+export const addToWishlist = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { product_id } = req.body;
         const user: any = req.user;
-        const user_id = user.user_id;
+        const user_id = user?.user_id;
 
         if (!user_id) {
-            return res.status(401).json({ error: "Unauthorized" });
+            return next(new ApiError(RESPONSE_MESSAGES.WISHLIST.UNAUTHORIZED, 401));
         }
 
         const result = await pool.query(
             `INSERT INTO wishlist_items (user_id, product_id) 
-       VALUES ($1, $2) 
-       ON CONFLICT (user_id, product_id) DO NOTHING 
-       RETURNING *`,
+             VALUES ($1, $2) 
+             ON CONFLICT (user_id, product_id) DO NOTHING 
+             RETURNING *`,
             [user_id, product_id]
         );
 
-        res.json(result.rows[0] || { message: "Already in wishlist" });
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+        if (result.rows.length === 0) {
+            return res.json({ message: RESPONSE_MESSAGES.WISHLIST.ALREADY_EXISTS });
+        }
+
+        res.status(201).json({ message: RESPONSE_MESSAGES.WISHLIST.ADDED, data: result.rows[0] });
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode || 500));
     }
 };
 
-// Get wishlist
-export const getWishlist = async (req: Request, res: Response) => {
+export const getWishlist = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const user: any = req.user;
-        const user_id = user.user_id;
+        const user_id = user?.user_id;
 
         if (!user_id) {
-            return res.status(401).json({ error: "Unauthorized" });
+            return next(new ApiError(RESPONSE_MESSAGES.WISHLIST.UNAUTHORIZED, 401));
         }
 
         const result = await pool.query(
@@ -49,43 +51,44 @@ export const getWishlist = async (req: Request, res: Response) => {
             [user_id]
         );
 
-        res.json(result.rows);
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+        res.json({ message: RESPONSE_MESSAGES.WISHLIST.RETRIEVED, data: result.rows });
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode || 500));
     }
 };
 
-
-// Remove from wishlist
-export const removeFromWishlist = async (req: Request, res: Response) => {
+export const removeFromWishlist = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { product_id } = req.params;
         const user: any = req.user;
-        const user_id = user.user_id;
+        const user_id = user?.user_id;
 
         if (!user_id) {
-            return res.status(401).json({ error: "Unauthorized" });
+            return next(new ApiError(RESPONSE_MESSAGES.WISHLIST.UNAUTHORIZED, 401));
         }
 
-        await pool.query(
-            `DELETE FROM wishlist_items WHERE user_id = $1 AND product_id = $2`,
+        const result = await pool.query(
+            `DELETE FROM wishlist_items WHERE user_id = $1 AND product_id = $2 RETURNING *`,
             [user_id, product_id]
         );
 
-        res.json({ message: "Removed from wishlist" });
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+        if (result.rows.length === 0) {
+            return next(new ApiError(RESPONSE_MESSAGES.WISHLIST.NOT_FOUND, 404));
+        }
+
+        res.json({ message: RESPONSE_MESSAGES.WISHLIST.REMOVED });
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode || 500));
     }
 };
 
-// Clear entire wishlist
-export const clearWishlist = async (req: Request, res: Response) => {
+export const clearWishlist = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const user: any = req.user;
-        const user_id = user.user_id;
+        const user_id = user?.user_id;
 
         if (!user_id) {
-            return res.status(401).json({ error: "Unauthorized" });
+            return next(new ApiError(RESPONSE_MESSAGES.WISHLIST.UNAUTHORIZED, 401));
         }
 
         const result = await pool.query(
@@ -94,11 +97,11 @@ export const clearWishlist = async (req: Request, res: Response) => {
         );
 
         if (result.rows.length === 0) {
-            return res.json({ message: "Wishlist already empty" });
+            return res.json({ message: RESPONSE_MESSAGES.WISHLIST.ALREADY_EMPTY });
         }
 
-        res.json({ message: "Wishlist cleared successfully" });
-    } catch (error: any) {
-        res.status(500).json({ error: error.message });
+        res.json({ message: RESPONSE_MESSAGES.WISHLIST.CLEARED });
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode || 500));
     }
 };

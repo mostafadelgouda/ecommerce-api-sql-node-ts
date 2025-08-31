@@ -1,8 +1,9 @@
 import { type Request, type Response, type NextFunction } from "express";
 import pool from "../config/db.js";
-import { getItemsWithFilters } from "../utils/filterPagination.js"
+import { getItemsWithFilters } from "../utils/filterPagination.js";
 import { RESPONSE_MESSAGES } from "../constants/responseMessages.js";
-// CREATE product
+import ApiError from "../utils/apiError.js";
+
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const {
@@ -14,12 +15,12 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 
         const result = await pool.query(
             `INSERT INTO products
-        (name, description, price, category_id, brand,
-         stand_up, folded_no_wheels, folded_wheels, frame,
-         weight_no_wheels, weight_capacity, width, handle_height,
-         wheels, seat_back_height, head_room, available_colors, available_sizes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-       RETURNING *`,
+            (name, description, price, category_id, brand,
+             stand_up, folded_no_wheels, folded_wheels, frame,
+             weight_no_wheels, weight_capacity, width, handle_height,
+             wheels, seat_back_height, head_room, available_colors, available_sizes)
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+            RETURNING *`,
             [
                 name, description, price, category_id, brand,
                 stand_up, folded_no_wheels, folded_wheels, frame,
@@ -28,17 +29,15 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
             ]
         );
 
-        res.status(201).json(result.rows[0]);
-    } catch (err) {
-        next(err);
+        res.status(201).json({ message: RESPONSE_MESSAGES.PRODUCT.CREATED, data: result.rows[0] });
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode));
     }
 };
 
-// READ all products
-// READ all products with main image
 export const getProducts = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { page = 1, limit = 10, category, min_price, max_price } = req.query;
+        const { page = 1, limit = 10, category } = req.query;
 
         const filters: Record<string, any> = {};
         if (category) filters.category_id = category;
@@ -52,7 +51,6 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
             "DESC"
         );
 
-        // 🔑 Fetch main image for each product
         const productsWithImages = await Promise.all(
             result.data.map(async (product: any) => {
                 const imgRes = await pool.query(
@@ -62,10 +60,7 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
                      LIMIT 1`,
                     [product.product_id]
                 );
-                return {
-                    ...product,
-                    main_image: imgRes.rows[0]?.image_url || null
-                };
+                return { ...product, main_image: imgRes.rows[0]?.image_url || null };
             })
         );
 
@@ -76,23 +71,18 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
             limit: Number(limit),
             data: productsWithImages
         });
-    } catch (err) {
-        next(err);
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode));
     }
 };
 
-// READ single product
 export const getProductById = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
 
-        const productRes = await pool.query(
-            "SELECT * FROM products WHERE product_id = $1",
-            [id]
-        );
-
+        const productRes = await pool.query("SELECT * FROM products WHERE product_id = $1", [id]);
         if (productRes.rows.length === 0) {
-            return res.status(404).json({ message: "Product not found" });
+            return next(new ApiError(RESPONSE_MESSAGES.PRODUCT.NOT_FOUND, 404));
         }
 
         const imagesRes = await pool.query(
@@ -101,96 +91,89 @@ export const getProductById = async (req: Request, res: Response, next: NextFunc
         );
 
         res.json({
-            ...productRes.rows[0],
-            images: imagesRes.rows
+            message: RESPONSE_MESSAGES.PRODUCT.FOUND,
+            data: { ...productRes.rows[0], images: imagesRes.rows }
         });
-    } catch (err) {
-        next(err);
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode));
     }
 };
 
-// UPDATE product
 export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
         const fields = Object.keys(req.body);
         const values = Object.values(req.body);
 
-        if (fields.length === 0) return res.status(400).json({ message: "No fields provided" });
+        if (fields.length === 0) {
+            return next(new ApiError(RESPONSE_MESSAGES.PRODUCT.NO_FIELDS, 400));
+        }
 
         const setQuery = fields.map((f, i) => `${f} = $${i + 1}`).join(", ");
-
         const result = await pool.query(
             `UPDATE products SET ${setQuery} WHERE product_id = $${fields.length + 1} RETURNING *`,
             [...values, id]
         );
 
-        if (result.rows.length === 0) return res.status(404).json({ message: "Product not found" });
+        if (result.rows.length === 0) {
+            return next(new ApiError(RESPONSE_MESSAGES.PRODUCT.NOT_FOUND, 404));
+        }
 
-        res.json(result.rows[0]);
-    } catch (err) {
-        next(err);
+        res.json({ message: RESPONSE_MESSAGES.PRODUCT.UPDATED, data: result.rows[0] });
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode));
     }
 };
 
-// DELETE product
 export const deleteProduct = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
         const result = await pool.query("DELETE FROM products WHERE product_id = $1 RETURNING *", [id]);
-        if (result.rows.length === 0) return res.status(404).json({ message: "Product not found" });
-        res.json({ message: "Product deleted" });
-    } catch (err) {
-        next(err);
+        if (result.rows.length === 0) {
+            return next(new ApiError(RESPONSE_MESSAGES.PRODUCT.NOT_FOUND, 404));
+        }
+        res.json({ message: RESPONSE_MESSAGES.PRODUCT.DELETED });
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode));
     }
 };
 
-export const addProductImage = async (req: Request, res: Response) => {
+export const addProductImage = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { image_url, is_main = false } = req.body;
-        const product_id = req.params.product_id
+        const product_id = req.params.product_id;
+
         if (!image_url) {
-            return res.status(400).json({ message: "Image URL is required" });
+            return next(new ApiError(RESPONSE_MESSAGES.IMAGE.URL_REQUIRED, 400));
         }
 
-        // If the new image is marked as main, reset all other images for that product (and variant if applicable)
         if (is_main) {
-
-            await pool.query(
-                `UPDATE product_images 
-                    SET is_main = false 
-                    WHERE product_id = $1`,
-                [product_id]
-            );
-
+            await pool.query(`UPDATE product_images SET is_main = false WHERE product_id = $1`, [product_id]);
         }
 
         const result = await pool.query(
             `INSERT INTO product_images (product_id, image_url, is_main) 
-             VALUES ($1, $2, $3) 
-             RETURNING *`,
+             VALUES ($1, $2, $3) RETURNING *`,
             [product_id || null, image_url, is_main]
         );
 
-        res.status(201).json(result.rows[0]);
+        res.status(201).json({ message: RESPONSE_MESSAGES.IMAGE.ADDED, data: result.rows[0] });
     } catch (err: any) {
-        res.status(500).json({ message: err.message });
+        return next(new ApiError(err.message, err.statusCode));
     }
 };
 
-
-export const getProductImages = async (req: Request, res: Response) => {
+export const getProductImages = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { product_id } = req.params;
-
         const result = await pool.query(
             `SELECT * FROM product_images WHERE product_id = $1 ORDER BY created_at DESC`,
             [product_id]
         );
 
-        res.json(result.rows);
+        res.json({ message: RESPONSE_MESSAGES.IMAGE.RETRIEVED, data: result.rows });
     } catch (err: any) {
-        res.status(500).json({ message: err.message });
+        return next(new ApiError(err.message, err.statusCode));
     }
 };
 
@@ -198,9 +181,11 @@ export const deleteProductImage = async (req: Request, res: Response, next: Next
     try {
         const { image_id } = req.params;
         const result = await pool.query("DELETE FROM product_images WHERE image_id = $1 RETURNING *", [image_id]);
-        if (result.rows.length === 0) return res.status(404).json({ message: "Image not found" });
-        res.json({ message: "Image deleted" });
-    } catch (err) {
-        next(err);
+        if (result.rows.length === 0) {
+            return next(new ApiError(RESPONSE_MESSAGES.IMAGE.NOT_FOUND, 404));
+        }
+        res.json({ message: RESPONSE_MESSAGES.IMAGE.DELETED });
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode));
     }
 };

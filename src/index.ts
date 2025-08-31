@@ -14,10 +14,11 @@ import globalError from "./middlewares/error.js";
 
 const app = express();
 
+app.use('', stripeRouter);
 app.use(express.json())
 app.use(passport.initialize());
 
-app.use('', stripeRouter);
+
 app.use('/api', userRouter);
 app.use('/api', adminRouter);
 app.use('/api/categories', categoriesRouter);

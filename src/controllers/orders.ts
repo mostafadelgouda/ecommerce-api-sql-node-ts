@@ -2,14 +2,15 @@ import { type Request, type Response, type NextFunction } from "express";
 import { getItemsWithFilters } from "../utils/filterPagination.js";
 import { RESPONSE_MESSAGES } from "../constants/responseMessages.js";
 import pool from "../config/db.js";
-// ✅ Admin: Get all done orders with pagination + filters
+import ApiError from "../utils/apiError.js";
+
 export const getAllOrders = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { page = 1, limit = 10, payment_status, user_id } = req.query;
 
-        const filters: Record<string, any> = {};//status: "done" 
+        const filters: Record<string, any> = {};
         if (payment_status) filters.payment_status = payment_status;
-        if (user_id) filters.user_id = user_id; // optional filter for admin
+        if (user_id) filters.user_id = user_id;
 
         const result = await getItemsWithFilters(
             "orders",
@@ -22,20 +23,19 @@ export const getAllOrders = async (req: Request, res: Response, next: NextFuncti
 
         res.json({
             message: RESPONSE_MESSAGES.ORDER.RETRIEVED,
-            ...result, // unpack pagination object
+            ...result,
         });
-    } catch (err) {
-        next(err);
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode));
     }
 };
 
-// ✅ User: Get their own done orders with pagination
 export const getUserOrders = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const user = (req as any).user;
         const { page = 1, limit = 10, payment_status } = req.query;
 
-        const filters: Record<string, any> = { user_id: user.user_id };//status: "done", 
+        const filters: Record<string, any> = { user_id: user.user_id };
         if (payment_status) filters.payment_status = payment_status;
 
         const result = await getItemsWithFilters(
@@ -51,36 +51,31 @@ export const getUserOrders = async (req: Request, res: Response, next: NextFunct
             message: RESPONSE_MESSAGES.ORDER.RETRIEVED,
             ...result,
         });
-    } catch (err) {
-        next(err);
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode));
     }
 };
 
-
-// ✅ Get details of a single order (with items)
 export const getOrderDetails = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { order_id } = req.params; // order_id
+        const { order_id } = req.params;
         const user = (req as any).user;
 
-        // First, check if order exists and belongs to the user (unless admin)
         const orderQuery = await pool.query(
             "SELECT * FROM orders WHERE order_id = $1",
             [order_id]
         );
 
         if (orderQuery.rows.length === 0) {
-            return res.status(404).json({ message: "Order not found" });
+            return next(new ApiError(RESPONSE_MESSAGES.ORDER.NOT_FOUND, 404));
         }
 
         const order = orderQuery.rows[0];
 
-        // If not admin, make sure user owns this order
         if (!user.is_admin && order.user_id !== user.user_id) {
-            return res.status(403).json({ message: "Unauthorized to view this order" });
+            return next(new ApiError(RESPONSE_MESSAGES.ORDER.UNAUTHORIZED, 403));
         }
 
-        // Now get order items
         const itemsQuery = await pool.query(
             `SELECT 
                 oi.order_item_id,
@@ -100,22 +95,22 @@ export const getOrderDetails = async (req: Request, res: Response, next: NextFun
                 items: itemsQuery.rows,
             },
         });
-    } catch (err) {
-        next(err);
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode));
     }
 };
+
 export const getOrderDetailsAdmin = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { order_id } = req.params; // order_id
+        const { order_id } = req.params;
 
-        // Get order info
         const orderQuery = await pool.query(
             "SELECT * FROM orders WHERE order_id = $1",
             [order_id]
         );
 
         if (orderQuery.rows.length === 0) {
-            return res.status(404).json({ message: "Order not found" });
+            return next(new ApiError(RESPONSE_MESSAGES.ORDER.NOT_FOUND, 404));
         }
 
         const order = orderQuery.rows[0];
@@ -139,7 +134,7 @@ export const getOrderDetailsAdmin = async (req: Request, res: Response, next: Ne
                 items: itemsQuery.rows,
             },
         });
-    } catch (err) {
-        next(err);
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode));
     }
 };
