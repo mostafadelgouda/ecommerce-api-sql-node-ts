@@ -61,7 +61,9 @@ export async function loginGoogle(req: Request, res: Response, next: NextFunctio
             process.env.JWT_SECRET || "secret",
             { expiresIn: "1d" }
         );
-        res.json({ message: RESPONSE_MESSAGES.AUTH.LOGIN_SUCCESS, data: { user, token } });
+        res.redirect(`https://your-frontend.com/login/success?token=${token}`);
+        //res.json({ message: RESPONSE_MESSAGES.AUTH.LOGIN_SUCCESS, data: { user, token } });
+
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode));
     }
