@@ -20,6 +20,8 @@
     "@types/nodemailer": "^7.0.1",
     "bcrypt": "^6.0.0",
     "bcrypt-ts": "^7.1.0",
+    "cors": "^2.8.5",
+    "cors-ts": "^1.0.3",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
@@ -28,9 +30,11 @@
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "pg": "^8.16.3",
-    "stripe": "^18.4.0"
+    "stripe": "^18.4.0",
+    "ts-core": "^0.6.4"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "@types/dotenv": "^8.2.3",
     "@types/express": "^5.0.3",
     "@types/node": "^24.3.0",

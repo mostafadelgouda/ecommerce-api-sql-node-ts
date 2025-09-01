@@ -11,8 +11,18 @@ import wishlistRouter from "./routers/wishlist.js"
 import stripeRouter from "./routers/stripe.js"
 import passport from "./config/passport.js";
 import globalError from "./middlewares/error.js";
+import cors from "cors";
 
 const app = express();
+app.use(
+    cors({
+        origin: ["http://localhost:4200"], // allowed frontend URLs "https://your-angular-deployed-url.com"
+        methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+        allowedHeaders: ["Content-Type", "Authorization"],
+        credentials: true, // if you send cookies or authorization headers
+    })
+);
+
 
 app.use('', stripeRouter);
 app.use(express.json())
