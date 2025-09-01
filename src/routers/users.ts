@@ -3,24 +3,24 @@ import { login, signup, getUserDetails, changePassword, forgotPassword, resetPas
 import { isAuthenticated } from "../middlewares/isAuth.js";
 import passport from "../config/passport.js";
 const router = Router();
-router.get(
+router.post(
     "/auth/login",
     login
 );
-router.get(
+router.post(
     "/auth/changePassword",
     isAuthenticated,
     changePassword
-);
-router.get(
+)
+router.post(
     "/auth/signup",
     signup
 );
-router.get(
+router.post(
     "/auth/forgotPassword",
     forgotPassword
 );
-router.get(
+router.post(
     "/auth/resetPassword",
     resetPassword
 );
