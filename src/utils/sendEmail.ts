@@ -18,7 +18,7 @@ export const sendEmail = async (
 ) => {
     try {
         const mailOptions = {
-            from: process.env.GMAIL_USER, // must be the same as authenticated user
+            from: process.env.GOOGLE_EMAIL, // must be the same as authenticated user
             to,
             subject,
             text,
