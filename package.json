@@ -4,9 +4,10 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon --watch src --exec ts-node src/index.ts",
+    "dev": "ts-node-dev src/index.ts",
     "build": "tsc",
-    "start": "npm run build && node dist/index.js",
+    "start": "node dist/index.js",
+    "local": "npm run build && node dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
