@@ -3,30 +3,19 @@ import pool from "../config/db.js";
 import { getItemsWithFilters } from "../utils/filterPagination.js";
 import { RESPONSE_MESSAGES } from "../constants/responseMessages.js";
 import ApiError from "../utils/apiError.js";
-
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const {
-            name, description, price, category_id, brand,
-            stand_up, folded_no_wheels, folded_wheels, frame,
-            weight_no_wheels, weight_capacity, width, handle_height,
-            wheels, seat_back_height, head_room, available_colors, available_sizes
-        } = req.body;
+        const { name, description, price, category_id, brand } = req.body;
+
+        if (!name || !price) {
+            return next(new ApiError("Name and price are required", 400));
+        }
 
         const result = await pool.query(
-            `INSERT INTO products
-            (name, description, price, category_id, brand,
-             stand_up, folded_no_wheels, folded_wheels, frame,
-             weight_no_wheels, weight_capacity, width, handle_height,
-             wheels, seat_back_height, head_room, available_colors, available_sizes)
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-            RETURNING *`,
-            [
-                name, description, price, category_id, brand,
-                stand_up, folded_no_wheels, folded_wheels, frame,
-                weight_no_wheels, weight_capacity, width, handle_height,
-                wheels, seat_back_height, head_room, available_colors, available_sizes
-            ]
+            `INSERT INTO products (name, description, price, category_id, brand)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING *`,
+            [name, description, price, category_id, brand]
         );
 
         res.status(201).json({ message: RESPONSE_MESSAGES.PRODUCT.CREATED, data: result.rows[0] });
@@ -35,6 +24,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
     }
 };
 
+// Get all products (with pagination + images)
 export const getProducts = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { page = 1, limit = 10, category } = req.query;
@@ -51,16 +41,55 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
             "DESC"
         );
 
-        const productsWithImages = await Promise.all(
+        const productsWithDetails = await Promise.all(
             result.data.map(async (product: any) => {
+                // images
                 const imgRes = await pool.query(
-                    `SELECT image_url 
-                     FROM product_images 
-                     WHERE product_id = $1 AND is_main = true 
-                     LIMIT 1`,
+                    `SELECT image_url, is_main 
+             FROM product_images 
+             WHERE product_id = $1 
+             ORDER BY is_main DESC, created_at ASC`,
                     [product.product_id]
                 );
-                return { ...product, main_image: imgRes.rows[0]?.image_url || null };
+
+                // average rating
+                const ratingRes = await pool.query(
+                    `SELECT 
+                CASE 
+                    WHEN COUNT(*) = 0 THEN 5 
+                    ELSE ROUND(AVG(rating),1) 
+                END AS average_rating
+             FROM reviews
+             WHERE product_id = $1`,
+                    [product.product_id]
+                );
+
+                // sale / discount
+                const saleRes = await pool.query(
+                    `SELECT discount_percent 
+             FROM sale_items 
+             WHERE variant_id = $1
+               AND start_date <= NOW()
+               AND end_date >= NOW()
+             ORDER BY created_at DESC 
+             LIMIT 1`,
+                    [product.product_id]
+                );
+
+                let final_price = product.price;
+                let discount_percent = null;
+                if (saleRes.rows.length > 0) {
+                    discount_percent = parseFloat(saleRes.rows[0].discount_percent);
+                    final_price = parseFloat(product.price) - (parseFloat(product.price) * discount_percent / 100);
+                }
+
+                return {
+                    ...product,
+                    images: imgRes.rows,
+                    average_rating: parseFloat(ratingRes.rows[0].average_rating),
+                    final_price,
+                    discount_percent
+                };
             })
         );
 
@@ -69,13 +98,14 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
             page: Number(page),
             total_items: result.number_of_items,
             limit: Number(limit),
-            data: productsWithImages
+            data: productsWithDetails
         });
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode));
     }
 };
 
+// Get product by ID (with images)
 export const getProductById = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
@@ -85,19 +115,57 @@ export const getProductById = async (req: Request, res: Response, next: NextFunc
             return next(new ApiError(RESPONSE_MESSAGES.PRODUCT.NOT_FOUND, 404));
         }
 
+        // images
         const imagesRes = await pool.query(
             "SELECT image_url, is_main FROM product_images WHERE product_id = $1 ORDER BY is_main DESC, created_at ASC",
             [id]
         );
 
+        // average rating
+        const ratingRes = await pool.query(
+            `SELECT 
+                CASE 
+                    WHEN COUNT(*) = 0 THEN 5 
+                    ELSE ROUND(AVG(rating),1) 
+                END AS average_rating
+            FROM reviews
+            WHERE product_id = $1`,
+            [id]
+        );
+        const saleRes = await pool.query(
+            `SELECT discount_percent 
+     FROM sale_items 
+     WHERE variant_id = $1
+       AND start_date <= NOW()
+       AND end_date >= NOW()
+     ORDER BY created_at DESC 
+     LIMIT 1`,
+            [id]
+        );
+
+        let final_price = productRes.rows[0].price;
+        let discount_percent = null;
+        if (saleRes.rows.length > 0) {
+            discount_percent = parseFloat(saleRes.rows[0].discount_percent);
+            final_price = parseFloat(final_price) - (parseFloat(final_price) * discount_percent / 100);
+        }
+
         res.json({
             message: RESPONSE_MESSAGES.PRODUCT.FOUND,
-            data: { ...productRes.rows[0], images: imagesRes.rows }
+            data: {
+                ...productRes.rows[0],
+                images: imagesRes.rows,
+                average_rating: parseFloat(ratingRes.rows[0].average_rating),
+                final_price,
+                discount_percent
+            }
         });
+
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode));
     }
 };
+
 
 export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
     try {

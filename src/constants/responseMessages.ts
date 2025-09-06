@@ -8,7 +8,7 @@ export const RESPONSE_MESSAGES = {
         INVALID_CREDINTIALS: "Invalid credentials",
         EMAIL_REQUIRED: "Email required",
         INVALID_CODE: "Invalid or expired code",
-        DETAILS_RETRIEVED: "User details retrieved successfully",
+        DETAILS_RETRIEVED: "Details retrieved successfully",
         RESET_CODE_SENT: "Reset code sent",
         PASSWORD_CHANGED: "Password changed successfully",
         OLD_PASSWORD_INCORRECT: "Old password is incorrect",
@@ -90,6 +90,15 @@ export const RESPONSE_MESSAGES = {
         NOT_FOUND: "Product not found in wishlist",
         CLEARED: "Wishlist cleared successfully",
         ALREADY_EMPTY: "Wishlist is already empty"
+    },
+    SALE_ITEM: {
+        CREATED: "Sale item created successfully",
+        UPDATED: "Sale item updated successfully",
+        DELETED: "Sale item deleted successfully",
+        FOUND: "Sale item found",
+        RETRIEVED: "Sale items retrieved successfully",
+        NOT_FOUND: "Sale item not found",
+        NO_FIELDS: "No fields to update"
     },
     PAY: {
         SESSION_CREATED: "Payment session url has been created"

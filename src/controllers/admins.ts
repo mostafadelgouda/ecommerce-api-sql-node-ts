@@ -72,3 +72,28 @@ export async function login(req: Request, res: Response, next: NextFunction) {
         return next(new ApiError(err.message, err.statusCode || 500));
     }
 }
+
+export async function getAdminDetails(req: Request, res: Response, next: NextFunction) {
+    try {
+        // Ensure middleware set user from JWT
+        const adminId = (req as any).user?.id;
+
+        if (!adminId) {
+            return next(new ApiError(RESPONSE_MESSAGES.AUTH.UNAUTHORIZED, 401));
+        }
+
+        const result = await pool.query(
+            "SELECT admin_id, email, name, permissions, created_at FROM admins WHERE admin_id = $1",
+            [adminId]
+        );
+
+        const admin = result.rows[0];
+
+        res.json({
+            message: RESPONSE_MESSAGES.AUTH.DETAILS_RETRIEVED,
+            data: admin
+        });
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode || 500));
+    }
+}
