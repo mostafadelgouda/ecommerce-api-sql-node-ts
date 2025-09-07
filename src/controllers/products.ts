@@ -4,23 +4,60 @@ import { getItemsWithFilters } from "../utils/filterPagination.js";
 import { RESPONSE_MESSAGES } from "../constants/responseMessages.js";
 import ApiError from "../utils/apiError.js";
 export const createProduct = async (req: Request, res: Response, next: NextFunction) => {
+    const client = await pool.connect();
     try {
-        const { name, description, price, category_id, brand } = req.body;
+        const { name, description, price, category_id, brand, images } = req.body;
 
         if (!name || !price) {
             return next(new ApiError("Name and price are required", 400));
         }
 
-        const result = await pool.query(
+        await client.query("BEGIN");
+
+        // Insert product
+        const productResult = await client.query(
             `INSERT INTO products (name, description, price, category_id, brand)
              VALUES ($1, $2, $3, $4, $5)
              RETURNING *`,
             [name, description, price, category_id, brand]
         );
 
-        res.status(201).json({ message: RESPONSE_MESSAGES.PRODUCT.CREATED, data: result.rows[0] });
+        const product = productResult.rows[0];
+
+        // Insert product images (if provided)
+        if (Array.isArray(images) && images.length > 0) {
+            for (const img of images) {
+                const { image_url, is_main = false } = img;
+
+                if (!image_url) continue; // skip invalid
+
+                if (is_main) {
+                    // Ensure only one main image for this product
+                    await client.query(
+                        `UPDATE product_images SET is_main = false WHERE product_id = $1`,
+                        [product.product_id]
+                    );
+                }
+
+                await client.query(
+                    `INSERT INTO product_images (product_id, image_url, is_main)
+                     VALUES ($1, $2, $3)`,
+                    [product.product_id, image_url, is_main]
+                );
+            }
+        }
+
+        await client.query("COMMIT");
+
+        res.status(201).json({
+            message: RESPONSE_MESSAGES.PRODUCT.CREATED,
+            data: product
+        });
     } catch (err: any) {
-        return next(new ApiError(err.message, err.statusCode));
+        await client.query("ROLLBACK");
+        return next(new ApiError(err.message, err.statusCode || 500));
+    } finally {
+        client.release();
     }
 };
 

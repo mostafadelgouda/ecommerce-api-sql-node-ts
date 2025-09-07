@@ -2,7 +2,7 @@ import { Router } from "express";
 import {
     createVariant, getVariantsByProduct,
     updateVariant, deleteVariant, addVariantImage, deleteVariantImage, getVariantImages
-} from "../controllers/product_variants.js";
+} from "../controllers/productVariants.js";
 
 import { isAdmin } from "../middlewares/isAdmin.js";
 

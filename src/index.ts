@@ -8,10 +8,13 @@ import productVariantsRouter from "./routers/product_variants.js"
 import orderesRouter from "./routers/orders.js"
 import cartRouter from "./routers/cart.js"
 import wishlistRouter from "./routers/wishlist.js"
+import saleItemsRouter from "./routers/saleItems.js"
+
 import stripeRouter from "./routers/stripe.js"
 import passport from "./config/passport.js";
 import globalError from "./middlewares/error.js";
 import cors from "cors";
+
 
 const app = express();
 app.use(
@@ -38,6 +41,7 @@ app.use('/api/cart', cartRouter);
 app.use('/api/wishlist', wishlistRouter);
 app.use('/api/reviews', reviewsRouter);
 app.use('/api/orders', orderesRouter);
+app.use('/api/saleItems', saleItemsRouter);
 
 
 app.get("/", (req, res) => {
