@@ -5,12 +5,11 @@ import ApiError from "../utils/apiError.js";
 import { RESPONSE_MESSAGES } from "../constants/responseMessages.js";
 
 // Create sale item
-// Create sale item
 export const createSaleItem = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { order_id, product_id, quantity, unit_price } = req.body;
+        const { product_id, discount_percent, start_date, end_date } = req.body;
 
-        if (!order_id || !product_id || !quantity || !unit_price) {
+        if (!product_id || !discount_percent || !start_date || !end_date) {
             return next(new ApiError("All fields are required", 400));
         }
 
@@ -19,10 +18,10 @@ export const createSaleItem = async (req: Request, res: Response, next: NextFunc
 
         // 2. Insert the new sale item
         const result = await pool.query(
-            `INSERT INTO sale_items (order_id, product_id, quantity, unit_price)
+            `INSERT INTO sale_items (product_id, discount_percent, start_date, end_date)
              VALUES ($1, $2, $3, $4)
              RETURNING *`,
-            [order_id, product_id, quantity, unit_price]
+            [product_id, discount_percent, start_date, end_date]
         );
 
         res.status(201).json({

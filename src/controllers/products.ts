@@ -64,68 +64,120 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 // Get all products (with pagination + images)
 export const getProducts = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { page = 1, limit = 10, category } = req.query;
+        const { page = 1, limit = 10, category, color, size } = req.query;
 
-        const filters: Record<string, any> = {};
-        if (category) filters.category_id = category;
+        const offset = (Number(page) - 1) * Number(limit);
 
-        const result = await getItemsWithFilters(
-            "products",
-            filters,
-            Number(page),
-            Number(limit),
-            "created_at",
-            "DESC"
-        );
+        // Build conditions dynamically
+        const conditions: string[] = [];
+        const values: any[] = [];
 
+        if (category) {
+            values.push(category);
+            conditions.push(`p.category_id = $${values.length}`);
+        }
+
+        if (color) {
+            values.push(color);
+            conditions.push(`v.color = $${values.length}`);
+        }
+
+        if (size) {
+            values.push(size);
+            conditions.push(`v.size = $${values.length}`);
+        }
+
+        const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+        // ✅ Fetch products with variants and their own main image
+        const query = `
+    SELECT 
+        p.product_id,
+        p.name,
+        p.description,
+        p.price,
+        p.category_id,
+        p.brand,
+        p.created_at,
+        img.image_url AS main_image,
+        json_agg(
+            json_build_object(
+                'variant_id', v.variant_id,
+                'color', v.color,
+                'size', v.size,
+                'stock', v.stock,
+                'created_at', v.created_at,
+                'main_image', vimg.image_url
+            )
+        ) AS variants
+    FROM products p
+    LEFT JOIN product_variants v ON p.product_id = v.product_id
+    LEFT JOIN LATERAL (
+        SELECT image_url 
+        FROM product_images i 
+        WHERE i.product_id = p.product_id 
+        ORDER BY i.is_main DESC, i.created_at ASC 
+        LIMIT 1
+    ) img ON TRUE
+    LEFT JOIN LATERAL (
+        SELECT image_url
+        FROM variant_images vi
+        WHERE vi.variant_id = v.variant_id
+        ORDER BY vi.is_main DESC, vi.created_at ASC
+        LIMIT 1
+    ) vimg ON TRUE
+    ${whereClause}
+    GROUP BY p.product_id, img.image_url
+    ORDER BY p.created_at DESC
+    LIMIT $${values.length + 1} OFFSET $${values.length + 2};
+`;
+
+
+        values.push(Number(limit), offset);
+
+        const result = await pool.query(query, values);
+
+        // Enrich with ratings + discount
         const productsWithDetails = await Promise.all(
-            result.data.map(async (product: any) => {
-                // images
-                const imgRes = await pool.query(
-                    `SELECT image_url, is_main 
-             FROM product_images 
-             WHERE product_id = $1 
-             ORDER BY is_main DESC, created_at ASC`,
-                    [product.product_id]
-                );
-
+            result.rows.map(async (row: any) => {
                 // average rating
                 const ratingRes = await pool.query(
                     `SELECT 
-                CASE 
-                    WHEN COUNT(*) = 0 THEN 5 
-                    ELSE ROUND(AVG(rating),1) 
-                END AS average_rating
-             FROM reviews
-             WHERE product_id = $1`,
-                    [product.product_id]
+                        CASE 
+                            WHEN COUNT(*) = 0 THEN 5 
+                            ELSE ROUND(AVG(rating), 1) 
+                        END AS average_rating
+                     FROM reviews
+                     WHERE product_id = $1`,
+                    [row.product_id]
                 );
 
                 // sale / discount
                 const saleRes = await pool.query(
                     `SELECT discount_percent 
-             FROM sale_items 
-             WHERE variant_id = $1
-               AND start_date <= NOW()
-               AND end_date >= NOW()
-             ORDER BY created_at DESC 
-             LIMIT 1`,
-                    [product.product_id]
+                     FROM sale_items 
+                     WHERE product_id = $1
+                       AND start_date <= NOW()
+                       AND end_date >= NOW()
+                     ORDER BY created_at DESC 
+                     LIMIT 1`,
+                    [row.product_id]
                 );
 
-                let final_price = product.price;
+                let final_price = row.price;
                 let discount_percent = null;
                 if (saleRes.rows.length > 0) {
                     discount_percent = parseFloat(saleRes.rows[0].discount_percent);
-                    final_price = parseFloat(product.price) - (parseFloat(product.price) * discount_percent / 100);
+                    final_price =
+                        parseFloat(row.price) -
+                        (parseFloat(row.price) * discount_percent) / 100;
                 }
 
                 return {
-                    ...product,
-                    images: imgRes.rows,
+                    ...row,
                     average_rating: parseFloat(ratingRes.rows[0].average_rating),
-                    final_price,
-                    discount_percent
+                    final_price: Math.round(final_price),
+                    discount_percent,
                 };
             })
         );
@@ -133,32 +185,60 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
         res.json({
             message: RESPONSE_MESSAGES.PRODUCT.RETRIEVED,
             page: Number(page),
-            total_items: result.number_of_items,
             limit: Number(limit),
-            data: productsWithDetails
+            total_items: productsWithDetails.length, // can replace with COUNT(*) if you need exact
+            data: productsWithDetails,
         });
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode));
     }
 };
 
+
+
 // Get product by ID (with images)
 export const getProductById = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
 
+        // ✅ Fetch product
         const productRes = await pool.query("SELECT * FROM products WHERE product_id = $1", [id]);
         if (productRes.rows.length === 0) {
             return next(new ApiError(RESPONSE_MESSAGES.PRODUCT.NOT_FOUND, 404));
         }
+        const product = productRes.rows[0];
 
-        // images
+        // ✅ Product images
         const imagesRes = await pool.query(
             "SELECT image_url, is_main FROM product_images WHERE product_id = $1 ORDER BY is_main DESC, created_at ASC",
             [id]
         );
 
-        // average rating
+        // ✅ Variants with their main image
+        const variantsRes = await pool.query(
+            `
+            SELECT 
+                v.variant_id,
+                v.color,
+                v.size,
+                v.stock,
+                v.created_at,
+                vi.image_url AS main_image
+            FROM product_variants v
+            LEFT JOIN LATERAL (
+                SELECT image_url 
+                FROM variant_images vi 
+                WHERE vi.variant_id = v.variant_id
+                ORDER BY vi.is_main DESC, vi.created_at ASC
+                LIMIT 1
+            ) vi ON TRUE
+            WHERE v.product_id = $1
+            ORDER BY v.created_at ASC
+            `,
+            [id]
+        );
+
+        // ✅ Average rating
         const ratingRes = await pool.query(
             `SELECT 
                 CASE 
@@ -169,37 +249,42 @@ export const getProductById = async (req: Request, res: Response, next: NextFunc
             WHERE product_id = $1`,
             [id]
         );
+
+        // ✅ Sale (discount) - product-level
         const saleRes = await pool.query(
             `SELECT discount_percent 
-     FROM sale_items 
-     WHERE variant_id = $1
-       AND start_date <= NOW()
-       AND end_date >= NOW()
-     ORDER BY created_at DESC 
-     LIMIT 1`,
+             FROM sale_items 
+             WHERE product_id = $1
+               AND start_date <= NOW()
+               AND end_date >= NOW()
+             ORDER BY created_at DESC 
+             LIMIT 1`,
             [id]
         );
 
-        let final_price = productRes.rows[0].price;
+        let final_price = product.price;
         let discount_percent = null;
         if (saleRes.rows.length > 0) {
             discount_percent = parseFloat(saleRes.rows[0].discount_percent);
-            final_price = parseFloat(final_price) - (parseFloat(final_price) * discount_percent / 100);
+            final_price =
+                parseFloat(product.price) -
+                (parseFloat(product.price) * discount_percent) / 100;
         }
 
         res.json({
             message: RESPONSE_MESSAGES.PRODUCT.FOUND,
             data: {
-                ...productRes.rows[0],
+                ...product,
                 images: imagesRes.rows,
+                variants: variantsRes.rows,
                 average_rating: parseFloat(ratingRes.rows[0].average_rating),
-                final_price,
+                final_price: Math.round(final_price),
                 discount_percent
             }
         });
 
     } catch (err: any) {
-        return next(new ApiError(err.message, err.statusCode));
+        return next(new ApiError(err.message, err.statusCode || 500));
     }
 };
 
