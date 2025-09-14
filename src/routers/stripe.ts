@@ -4,7 +4,7 @@ import pool from "../config/db.js";
 import { isAuthenticated } from "../middlewares/isAuth.js";
 import { RESPONSE_MESSAGES } from "../constants/responseMessages.js";
 import ApiError from "../utils/apiError.js";
-
+import { validateRequest } from "../middlewares/validateRequest.js";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
     apiVersion: "2024-04-10" as any,
 });
@@ -104,44 +104,83 @@ router.post(
 );
 
 
-router.post("/create-checkout-session", isAuthenticated, async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const user = (req as any).user;
-        const userId = user.user_id;
+router.post(
+    "/create-checkout-session",
+    isAuthenticated,
+    async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const user = (req as any).user;
+            const userId = user.user_id;
 
-        const cartQuery = `
-            SELECT p.name, p.price, c.quantity
-            FROM cart_items c
-            JOIN products p ON c.product_id = p.product_id
-            WHERE c.user_id = $1
-        `;
-        const { rows: cartItems } = await pool.query(cartQuery, [userId]);
+            // ✅ Get cart items with base price
+            const cartQuery = `
+                SELECT p.product_id, p.name, p.price, c.quantity
+                FROM cart_items c
+                JOIN products p ON c.product_id = p.product_id
+                WHERE c.user_id = $1
+            `;
+            const { rows: cartItems } = await pool.query(cartQuery, [userId]);
 
-        if (cartItems.length === 0) {
-            return next(new ApiError("Cart it empty()", 400));
+            if (cartItems.length === 0) {
+                return next(new ApiError("Cart is empty", 400));
+            }
+
+            // ✅ Check for discounts for each product
+            const enrichedItems = await Promise.all(
+                cartItems.map(async (item: any) => {
+                    const saleRes = await pool.query(
+                        `
+                        SELECT discount_percent
+                        FROM sale_items
+                        WHERE product_id = $1
+                          AND start_date <= NOW()
+                          AND end_date >= NOW()
+                        ORDER BY created_at DESC
+                        LIMIT 1
+                        `,
+                        [item.product_id]
+                    );
+
+                    let finalPrice = parseFloat(item.price);
+                    if (saleRes.rows.length > 0) {
+                        const discount = parseFloat(saleRes.rows[0].discount_percent);
+                        finalPrice = finalPrice - (finalPrice * discount) / 100;
+                    }
+
+                    return {
+                        ...item,
+                        final_price: Math.round(finalPrice * 100), // Stripe expects cents
+                    };
+                })
+            );
+
+            // ✅ Create Stripe session with discounted prices
+            const session = await stripe.checkout.sessions.create({
+                payment_method_types: ["card"],
+                mode: "payment",
+                line_items: enrichedItems.map((item: any) => ({
+                    price_data: {
+                        currency: "usd",
+                        product_data: { name: item.name },
+                        unit_amount: item.final_price,
+                    },
+                    quantity: item.quantity,
+                })),
+                success_url: `${process.env.CLIENT_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
+                cancel_url: `${process.env.CLIENT_URL}/cancel`,
+                metadata: { user_id: userId.toString() },
+            });
+
+            res.json({
+                message: RESPONSE_MESSAGES.PAY.SESSION_CREATED,
+                url: session.url,
+            });
+        } catch (err: any) {
+            return next(new ApiError(err.message, err.statusCode || 500));
         }
-
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ["card"],
-            mode: "payment",
-            line_items: cartItems.map((item: any) => ({
-                price_data: {
-                    currency: "usd",
-                    product_data: { name: item.name },
-                    unit_amount: item.price * 100,
-                },
-                quantity: item.quantity,
-            })),
-            success_url: `${process.env.CLIENT_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${process.env.CLIENT_URL}/cancel`,
-            metadata: { user_id: userId.toString() },
-        });
-
-        res.json({ message: RESPONSE_MESSAGES.PAY.SESSION_CREATED, url: session.url });
-    } catch (err: any) {
-        return next(new ApiError(err.message, err.statusCode || 500));
     }
-});
+);
+
 
 
 export default router;

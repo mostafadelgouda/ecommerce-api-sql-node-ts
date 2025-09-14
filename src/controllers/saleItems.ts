@@ -93,7 +93,7 @@ export const updateSaleItem = async (req: Request, res: Response, next: NextFunc
 
         const setQuery = fields.map((f, i) => `${f} = $${i + 1}`).join(", ");
         const result = await pool.query(
-            `UPDATE sale_items SET ${setQuery}, updated_at = NOW() WHERE sale_item_id = $${fields.length + 1} RETURNING *`,
+            `UPDATE sale_items SET ${setQuery}, updated_at = NOW() WHERE sale_id = $${fields.length + 1} RETURNING *`,
             [...values, id]
         );
 
@@ -112,7 +112,7 @@ export const deleteSaleItem = async (req: Request, res: Response, next: NextFunc
     try {
         const { id } = req.params;
 
-        const result = await pool.query("DELETE FROM sale_items WHERE sale_item_id = $1 RETURNING *", [id]);
+        const result = await pool.query("DELETE FROM sale_items WHERE sale_id = $1 RETURNING *", [id]);
         if (result.rows.length === 0) {
             return next(new ApiError(RESPONSE_MESSAGES.SALE_ITEM.NOT_FOUND, 404));
         }

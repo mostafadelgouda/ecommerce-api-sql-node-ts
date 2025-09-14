@@ -51,14 +51,46 @@ export const getCart = async (req: Request, res: Response, next: NextFunction) =
             [user.user_id]
         );
 
+        // Enrich with discounts
+        const cartWithDiscounts = await Promise.all(
+            result.rows.map(async (item: any) => {
+                const saleRes = await pool.query(
+                    `SELECT discount_percent 
+                     FROM sale_items 
+                     WHERE product_id = $1
+                       AND start_date <= NOW()
+                       AND end_date >= NOW()
+                     ORDER BY created_at DESC 
+                     LIMIT 1`,
+                    [item.product_id]
+                );
+
+                let discount_percent = null;
+                let final_price = parseFloat(item.price);
+
+                if (saleRes.rows.length > 0) {
+                    discount_percent = parseFloat(saleRes.rows[0].discount_percent);
+                    final_price =
+                        final_price - (final_price * discount_percent) / 100;
+                }
+
+                return {
+                    ...item,
+                    discount_percent,
+                    final_price: Math.round(final_price * 100) / 100, // keep 2 decimals
+                };
+            })
+        );
+
         res.json({
             message: RESPONSE_MESSAGES.CART.RETRIEVED,
-            data: result.rows,
+            data: cartWithDiscounts,
         });
     } catch (err: any) {
-        return next(new ApiError(err.message, err.statusCode));
+        return next(new ApiError(err.message, err.statusCode || 500));
     }
 };
+
 
 export const updateCartItem = async (req: Request, res: Response, next: NextFunction) => {
     try {

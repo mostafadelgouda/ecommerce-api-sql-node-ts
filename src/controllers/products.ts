@@ -197,12 +197,30 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
 
 
 // Get product by ID (with images)
+// Get product by ID (with images)
 export const getProductById = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
 
-        // ✅ Fetch product
-        const productRes = await pool.query("SELECT * FROM products WHERE product_id = $1", [id]);
+        // ✅ Fetch product with its main image
+        const productRes = await pool.query(
+            `
+            SELECT 
+                p.*,
+                img.image_url AS main_image
+            FROM products p
+            LEFT JOIN LATERAL (
+                SELECT image_url 
+                FROM product_images i 
+                WHERE i.product_id = p.product_id 
+                ORDER BY i.is_main DESC, i.created_at ASC 
+                LIMIT 1
+            ) img ON TRUE
+            WHERE p.product_id = $1
+            `,
+            [id]
+        );
+
         if (productRes.rows.length === 0) {
             return next(new ApiError(RESPONSE_MESSAGES.PRODUCT.NOT_FOUND, 404));
         }
