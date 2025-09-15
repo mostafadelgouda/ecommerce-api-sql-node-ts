@@ -56,11 +56,15 @@ This API provides complete functionality for managing products, categories, vari
 - **ORM/Querying:** pg (node-postgres)
 - **Authentication:** JWT, Google OAuth
 - **Payment Gateway:** Stripe (or similar)
-- **Deployment:** Vercel / Railway / Docker
+- **Deployment:** Vercel
 
 ---
 
 ## 📂 Project Structure
+
+│── config/    # init configrations
+
+│── constants/    # Constants
 
 │── controllers/    # API logic
 
@@ -70,7 +74,7 @@ This API provides complete functionality for managing products, categories, vari
 
 │── models/         # Database models / queries
 
-│── utils/          # Helpers, constants
+│── utils/          # Helpers
 
 │── app.ts          # Express app setup
 
@@ -104,7 +108,7 @@ Each folder in the collection is documented with request descriptions:
 
 You can test all endpoints directly from the included Postman collection.
 
-Make sure to set your **environment variables** (base URL, tokens) in Postman.
+Make sure to set your **environment variables** (base_url(https://ecommerce-api-sql-node-ts-git-main-mostafadelgoudas-projects.vercel.app), tokens(auth, admin)) in Postman.
 
 ## 📌 Notes
 

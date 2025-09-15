@@ -6,7 +6,7 @@ import { validateRequest } from "../middlewares/validateRequest.js";
 
 const router = Router();
 
-router.post("/admin/signup", signupValidator, validateRequest, signup);
+//router.post("/admin/signup", signupValidator, validateRequest, signup);
 router.post("/admin/login", loginValidator, validateRequest, login);
 router.get(
     "/admin/getDetails",
