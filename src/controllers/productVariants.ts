@@ -27,13 +27,33 @@ export const createVariant = async (req: Request, res: Response, next: NextFunct
 export const getVariantsByProduct = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { productId } = req.params;
-        const result = await pool.query("SELECT * FROM product_variants WHERE product_id = $1", [productId]);
 
-        res.json({ message: RESPONSE_MESSAGES.VARIANT.RETRIEVED, data: result.rows });
+        const query = `
+      SELECT
+        v.*,
+        vimg.image_url AS main_image
+      FROM product_variants v
+      LEFT JOIN LATERAL (
+        SELECT image_url
+        FROM variant_images vi
+        WHERE vi.variant_id = v.variant_id AND vi.is_main = true
+        LIMIT 1
+      ) vimg ON TRUE
+      WHERE v.product_id = $1
+      ORDER BY v.created_at ASC
+    `;
+
+        const result = await pool.query(query, [productId]);
+
+        res.json({
+            message: RESPONSE_MESSAGES.VARIANT.RETRIEVED,
+            data: result.rows,
+        });
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode));
     }
 };
+
 
 export const updateVariant = async (req: Request, res: Response, next: NextFunction) => {
     try {
