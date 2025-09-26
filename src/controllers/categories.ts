@@ -93,6 +93,8 @@ export const updateCategory = async (req: Request, res: Response, next: NextFunc
 export const deleteCategory = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
+
+        // Delete the category
         const result = await pool.query(
             "DELETE FROM categories WHERE category_id = $1 RETURNING *",
             [id]
@@ -102,8 +104,14 @@ export const deleteCategory = async (req: Request, res: Response, next: NextFunc
             return next(new ApiError(RESPONSE_MESSAGES.CATEGORY.NOT_FOUND, 404));
         }
 
+        // Fetch remaining categories
+        const remainingCategories = await pool.query(
+            "SELECT * FROM categories ORDER BY created_at DESC"
+        );
+
         res.json({
             message: RESPONSE_MESSAGES.CATEGORY.DELETED,
+            data: remainingCategories.rows,
         });
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode || 500));
