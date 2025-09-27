@@ -64,7 +64,7 @@ export const createProduct = async (req: Request, res: Response, next: NextFunct
 // Get all products (with pagination + images)
 export const getProducts = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { page = 1, limit = 10, category, color, size } = req.query;
+        const { page = 1, limit = 10, category, color, size, min_price, max_price } = req.query;
 
         const offset = (Number(page) - 1) * Number(limit);
 
@@ -87,51 +87,60 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
             conditions.push(`v.size = $${values.length}`);
         }
 
+        if (min_price) {
+            values.push(Number(min_price));
+            conditions.push(`p.price >= $${values.length}`);
+        }
+
+        if (max_price) {
+            values.push(Number(max_price));
+            conditions.push(`p.price <= $${values.length}`);
+        }
+
         const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
         // ✅ Fetch products with variants and their own main image
         const query = `
-    SELECT 
-        p.product_id,
-        p.name,
-        p.description,
-        p.price,
-        p.category_id,
-        p.brand,
-        p.created_at,
-        img.image_url AS main_image,
-        json_agg(
-            json_build_object(
-                'variant_id', v.variant_id,
-                'color', v.color,
-                'size', v.size,
-                'stock', v.stock,
-                'created_at', v.created_at,
-                'main_image', vimg.image_url
-            )
-        ) AS variants
-    FROM products p
-    LEFT JOIN product_variants v ON p.product_id = v.product_id
-    LEFT JOIN LATERAL (
-        SELECT image_url 
-        FROM product_images i 
-        WHERE i.product_id = p.product_id 
-        ORDER BY i.is_main DESC, i.created_at ASC 
-        LIMIT 1
-    ) img ON TRUE
-    LEFT JOIN LATERAL (
-        SELECT image_url
-        FROM variant_images vi
-        WHERE vi.variant_id = v.variant_id
-        ORDER BY vi.is_main DESC, vi.created_at ASC
-        LIMIT 1
-    ) vimg ON TRUE
-    ${whereClause}
-    GROUP BY p.product_id, img.image_url
-    ORDER BY p.created_at DESC
-    LIMIT $${values.length + 1} OFFSET $${values.length + 2};
-`;
-
+            SELECT 
+                p.product_id,
+                p.name,
+                p.description,
+                p.price,
+                p.category_id,
+                p.brand,
+                p.created_at,
+                img.image_url AS main_image,
+                json_agg(
+                    json_build_object(
+                        'variant_id', v.variant_id,
+                        'color', v.color,
+                        'size', v.size,
+                        'stock', v.stock,
+                        'created_at', v.created_at,
+                        'main_image', vimg.image_url
+                    )
+                ) AS variants
+            FROM products p
+            LEFT JOIN product_variants v ON p.product_id = v.product_id
+            LEFT JOIN LATERAL (
+                SELECT image_url 
+                FROM product_images i 
+                WHERE i.product_id = p.product_id 
+                ORDER BY i.is_main DESC, i.created_at ASC 
+                LIMIT 1
+            ) img ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT image_url
+                FROM variant_images vi
+                WHERE vi.variant_id = v.variant_id
+                ORDER BY vi.is_main DESC, vi.created_at ASC
+                LIMIT 1
+            ) vimg ON TRUE
+            ${whereClause}
+            GROUP BY p.product_id, img.image_url
+            ORDER BY p.created_at DESC
+            LIMIT $${values.length + 1} OFFSET $${values.length + 2};
+        `;
 
         values.push(Number(limit), offset);
 
@@ -186,7 +195,7 @@ export const getProducts = async (req: Request, res: Response, next: NextFunctio
             message: RESPONSE_MESSAGES.PRODUCT.RETRIEVED,
             page: Number(page),
             limit: Number(limit),
-            total_items: productsWithDetails.length, // can replace with COUNT(*) if you need exact
+            total_items: productsWithDetails.length, // replace with COUNT(*) if exact count needed
             data: productsWithDetails,
         });
     } catch (err: any) {
