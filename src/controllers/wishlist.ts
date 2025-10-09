@@ -72,20 +72,46 @@ export const removeFromWishlist = async (req: Request, res: Response, next: Next
             return next(new ApiError(RESPONSE_MESSAGES.WISHLIST.UNAUTHORIZED, 401));
         }
 
-        const result = await pool.query(
-            `DELETE FROM wishlist_items WHERE user_id = $1 AND wishlist_item_id = $2 RETURNING *`,
+        // Delete the item first
+        const deleteResult = await pool.query(
+            `DELETE FROM wishlist_items 
+             WHERE user_id = $1 AND wishlist_item_id = $2 
+             RETURNING *`,
             [user_id, wishlist_item_id]
         );
 
-        if (result.rows.length === 0) {
+        if (deleteResult.rows.length === 0) {
             return next(new ApiError(RESPONSE_MESSAGES.WISHLIST.NOT_FOUND, 404));
         }
 
-        res.json({ message: RESPONSE_MESSAGES.WISHLIST.REMOVED });
+        // Fetch the updated wishlist
+        const wishlistResult = await pool.query(
+            `SELECT 
+                w.wishlist_item_id, 
+                p.product_id, 
+                p.name, 
+                p.price,
+                i.image_url AS main_image
+             FROM wishlist_items AS w
+             JOIN products AS p 
+                ON w.product_id = p.product_id
+             JOIN product_images AS i 
+                ON i.product_id = p.product_id 
+                AND i.is_main = TRUE
+             WHERE w.user_id = $1`,
+            [user_id]
+        );
+
+        res.json({
+            message: RESPONSE_MESSAGES.WISHLIST.REMOVED,
+            data: wishlistResult.rows
+        });
+
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode || 500));
     }
 };
+
 
 export const clearWishlist = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -105,7 +131,7 @@ export const clearWishlist = async (req: Request, res: Response, next: NextFunct
             return res.json({ message: RESPONSE_MESSAGES.WISHLIST.ALREADY_EMPTY });
         }
 
-        res.json({ message: RESPONSE_MESSAGES.WISHLIST.CLEARED });
+        res.json({ message: RESPONSE_MESSAGES.WISHLIST.CLEARED, data: [] });
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode || 500));
     }
