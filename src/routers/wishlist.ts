@@ -25,7 +25,7 @@ router.post(
 router.get("/", isAuthenticated, getWishlist);
 
 router.delete(
-    "/:product_id",
+    "/:wishlist_item_id",
     isAuthenticated,
     removeFromWishlistValidator,
     validateRequest,

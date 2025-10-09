@@ -64,7 +64,7 @@ export const getWishlist = async (req: Request, res: Response, next: NextFunctio
 
 export const removeFromWishlist = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { product_id } = req.params;
+        const { wishlist_item_id } = req.params;
         const user: any = req.user;
         const user_id = user?.user_id;
 
@@ -73,8 +73,8 @@ export const removeFromWishlist = async (req: Request, res: Response, next: Next
         }
 
         const result = await pool.query(
-            `DELETE FROM wishlist_items WHERE user_id = $1 AND product_id = $2 RETURNING *`,
-            [user_id, product_id]
+            `DELETE FROM wishlist_items WHERE user_id = $1 AND wishlist_item_id = $2 RETURNING *`,
+            [user_id, wishlist_item_id]
         );
 
         if (result.rows.length === 0) {
