@@ -18,6 +18,7 @@ router.post(
     async (req: Request, res: Response) => {
         const sig = req.headers["stripe-signature"] as string;
         let event: Stripe.Event;
+
         try {
             event = stripe.webhooks.constructEvent(
                 req.body,
@@ -25,14 +26,13 @@ router.post(
                 process.env.STRIPE_WEBHOOK_SECRET as string
             );
         } catch (err: any) {
-            console.error("⚠️ Webhook signature verification failed.", err.message);
+            console.error("⚠️ Webhook signature verification failed:", err.message);
             return res.status(400).send(`Webhook Error: ${err.message}`);
         }
 
         if (event.type === "checkout.session.completed") {
             const session = event.data.object as Stripe.Checkout.Session;
             const userId = session.metadata?.user_id;
-
 
             console.log("✅ Payment success for user:", userId);
 
@@ -42,21 +42,16 @@ router.post(
             }
 
             try {
+                // 🛒 Get all cart items for the user
                 const { rows: cartItems } = await pool.query(
                     `
                     SELECT 
                         ci.cart_item_id,
                         ci.user_id,
-                        ci.variant_id,
                         ci.quantity,
                         ci.product_id,
-                        p.price,               -- ✅ get product price
-                        pv.size,
-                        pv.color,
-                        pv.stock,
-                        pv.sold
+                        p.price
                     FROM cart_items ci
-                    JOIN product_variants pv ON ci.variant_id = pv.variant_id
                     JOIN products p ON ci.product_id = p.product_id
                     WHERE ci.user_id = $1;
                     `,
@@ -68,30 +63,42 @@ router.post(
                     return res.json({ received: true });
                 }
 
+                // 💰 Create order
                 const { rows: orderRows } = await pool.query(
-                    `INSERT INTO orders (user_id, total_amount, status) 
-           VALUES ($1, $2, $3) RETURNING order_id`,
+                    `
+                    INSERT INTO orders (user_id, total_amount, status) 
+                    VALUES ($1, $2, $3) 
+                    RETURNING order_id
+                    `,
                     [userId, session.amount_total! / 100, "paid"]
                 );
 
                 const orderId = orderRows[0].order_id;
 
+                // 🧾 Add order items
                 for (const item of cartItems) {
                     await pool.query(
-                        `INSERT INTO order_items (order_id, product_id, variant_id, quantity, price) 
-                        VALUES ($1, $2, $3, $4, $5)`,
-                        [orderId, item.product_id, item.variant_id, item.quantity, item.price]
+                        `
+                        INSERT INTO order_items (order_id, product_id, quantity, price)
+                        VALUES ($1, $2, $3, $4)
+                        `,
+                        [orderId, item.product_id, item.quantity, item.price]
                     );
 
+                    // 🏷️ Update product stock (if applicable)
                     await pool.query(
-                        `UPDATE product_variants 
-             SET stock = stock - $1, sold = sold + $1
-             WHERE variant_id = $2`,
-                        [item.quantity, item.variant_id]
+                        `
+                        UPDATE products 
+                        SET stock = stock - $1, sold = sold + $1
+                        WHERE product_id = $2
+                        `,
+                        [item.quantity, item.product_id]
                     );
                 }
 
+                // 🧹 Clear cart
                 await pool.query(`DELETE FROM cart_items WHERE user_id = $1`, [userId]);
+
                 console.log("✅ Order created and cart cleared for user:", userId);
             } catch (err) {
                 console.error("❌ Error processing order:", err);
