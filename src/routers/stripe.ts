@@ -103,7 +103,6 @@ router.post(
     }
 );
 
-
 router.post(
     "/create-checkout-session",
     isAuthenticated,
@@ -112,7 +111,7 @@ router.post(
             const user = (req as any).user;
             const userId = user.user_id;
 
-            // ✅ Get cart items with base price
+            // ✅ Get cart items directly from products
             const cartQuery = `
                 SELECT p.product_id, p.name, p.price, c.quantity
                 FROM cart_items c
@@ -125,7 +124,7 @@ router.post(
                 return next(new ApiError("Cart is empty", 400));
             }
 
-            // ✅ Check for discounts for each product
+            // ✅ Apply discounts (if any)
             const enrichedItems = await Promise.all(
                 cartItems.map(async (item: any) => {
                     const saleRes = await pool.query(
@@ -149,26 +148,30 @@ router.post(
 
                     return {
                         ...item,
-                        final_price: Math.round(finalPrice * 100), // Stripe expects cents
+                        final_price: Math.round(finalPrice * 100), // Stripe expects amount in cents
                     };
                 })
             );
 
-            // ✅ Create Stripe session with discounted prices
+            // ✅ Create Stripe Checkout session
             const session = await stripe.checkout.sessions.create({
                 payment_method_types: ["card"],
                 mode: "payment",
                 line_items: enrichedItems.map((item: any) => ({
                     price_data: {
                         currency: "usd",
-                        product_data: { name: item.name },
+                        product_data: {
+                            name: item.name,
+                        },
                         unit_amount: item.final_price,
                     },
                     quantity: item.quantity,
                 })),
                 success_url: `${process.env.CLIENT_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
                 cancel_url: `${process.env.CLIENT_URL}/cancel`,
-                metadata: { user_id: userId.toString() },
+                metadata: {
+                    user_id: userId.toString(),
+                },
             });
 
             res.json({

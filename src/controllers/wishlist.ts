@@ -56,11 +56,19 @@ export const getWishlist = async (req: Request, res: Response, next: NextFunctio
             WHERE w.user_id = $1`,
             [user_id]
         );
-        res.json({ message: RESPONSE_MESSAGES.WISHLIST.RETRIEVED, data: result.rows });
+
+        const wishlistCount = result.rows.length;
+
+        res.json({
+            message: RESPONSE_MESSAGES.WISHLIST.RETRIEVED,
+            total_items: wishlistCount,
+            data: result.rows,
+        });
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode || 500));
     }
 };
+
 
 export const removeFromWishlist = async (req: Request, res: Response, next: NextFunction) => {
     try {
