@@ -41,16 +41,21 @@ export const getWishlist = async (req: Request, res: Response, next: NextFunctio
         }
 
         const result = await pool.query(
-            `SELECT w.wishlist_item_id, 
-                    p.product_id, 
-                    p.name, 
-                    p.price
-             FROM wishlist_items w
-             JOIN products p ON w.product_id = p.product_id
-             WHERE w.user_id = $1`,
+            `SELECT 
+                w.wishlist_item_id, 
+                p.product_id, 
+                p.name, 
+                p.price,
+                i.image_url AS main_image
+            FROM wishlist_items AS w
+            JOIN products AS p 
+                ON w.product_id = p.product_id
+            JOIN product_images AS i 
+                ON i.product_id = p.product_id 
+                AND i.is_main = TRUE
+            WHERE w.user_id = $1`,
             [user_id]
         );
-
         res.json({ message: RESPONSE_MESSAGES.WISHLIST.RETRIEVED, data: result.rows });
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode || 500));
