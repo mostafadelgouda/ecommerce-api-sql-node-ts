@@ -42,9 +42,17 @@ export const getCart = async (req: Request, res: Response, next: NextFunction) =
                 ci.quantity,
                 p.product_id,
                 p.name AS product_name,
-                p.price
+                p.price,
+                img.image_url AS main_image
              FROM cart_items ci
              JOIN products p ON ci.product_id = p.product_id
+             LEFT JOIN LATERAL (
+                 SELECT image_url 
+                 FROM product_images i
+                 WHERE i.product_id = p.product_id
+                 ORDER BY i.is_main DESC, i.created_at ASC
+                 LIMIT 1
+             ) img ON TRUE
              WHERE ci.user_id = $1
              ORDER BY ci.added_at DESC`,
             [user.user_id]
@@ -101,6 +109,7 @@ export const getCart = async (req: Request, res: Response, next: NextFunction) =
         return next(new ApiError(err.message, err.statusCode || 500));
     }
 };
+
 
 // ✅ Update Cart Item
 export const updateCartItem = async (req: Request, res: Response, next: NextFunction) => {
