@@ -26,18 +26,27 @@ export const createReview = async (req: Request, res: Response, next: NextFuncti
         return next(new ApiError(err.message, err.statusCode));
     }
 };
-
 export const getProductReviews = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { product_id } = req.params;
-
+        const currentUserId = req.body.user_id || null;
+        console.log(currentUserId);
         const result = await pool.query(
-            `SELECT r.review_id, r.rating, r.comment, r.created_at, u.name
+            `SELECT 
+                r.review_id, 
+                r.rating, 
+                r.comment, 
+                r.created_at, 
+                u.name,
+                CASE 
+                    WHEN r.user_id = $2 THEN true 
+                    ELSE false 
+                END AS is_current_user
              FROM reviews r
              JOIN users u ON r.user_id = u.user_id
              WHERE r.product_id = $1
              ORDER BY r.created_at DESC`,
-            [product_id]
+            [product_id, currentUserId]
         );
 
         res.json({
@@ -49,6 +58,7 @@ export const getProductReviews = async (req: Request, res: Response, next: NextF
         return next(new ApiError(err.message, err.statusCode));
     }
 };
+
 
 export const updateReview = async (req: Request, res: Response, next: NextFunction) => {
     try {

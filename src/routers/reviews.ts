@@ -8,6 +8,7 @@ import {
 import { isAuthenticated } from "../middlewares/isAuth.js";
 import { validateRequest } from "../middlewares/validateRequest.js";
 import { createReviewValidator } from "../validators/reviewValidators.js";
+import { attachUserFromToken } from "../middlewares/attachUserFromToken.js";
 
 const router = Router();
 
@@ -19,7 +20,7 @@ router.post(
     createReview
 );
 
-router.get("/:product_id", getProductReviews);
+router.get("/:product_id", attachUserFromToken, getProductReviews);
 
 router.put("/:review_id", isAuthenticated, updateReview);
 
