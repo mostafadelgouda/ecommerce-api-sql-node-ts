@@ -86,17 +86,18 @@ router.post(
                     );
 
                     // 🏷️ Update product stock (if applicable)
-                    await pool.query(
-                        `
-                        UPDATE products 
-                        SET stock = stock - $1, sold = sold + $1
-                        WHERE product_id = $2
-                        `,
-                        [item.quantity, item.product_id]
-                    );
+                    // await pool.query(
+                    //     `
+                    //     UPDATE products 
+                    //     SET stock = stock - $1, sold = sold + $1
+                    //     WHERE product_id = $2
+                    //     `,
+                    //     [item.quantity, item.product_id]
+                    // );
                 }
 
                 // 🧹 Clear cart
+
                 await pool.query(`DELETE FROM cart_items WHERE user_id = $1`, [userId]);
 
                 console.log("✅ Order created and cart cleared for user:", userId);
