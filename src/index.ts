@@ -31,7 +31,7 @@ app.use(
  * 🚨 Stripe requires the *raw* body to verify the signature.
  * So we must register its router BEFORE express.json().
  */
-app.use("/stripe", stripeRouter);
+app.use("/", stripeRouter);
 
 // Now we can safely parse JSON for all other routes
 app.use(express.json());
