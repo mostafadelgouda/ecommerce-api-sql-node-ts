@@ -55,12 +55,12 @@ export const getUserOrders = async (req: Request, res: Response, next: NextFunct
         return next(new ApiError(err.message, err.statusCode));
     }
 };
-
 export const getOrderDetails = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { order_id } = req.params;
         const user = (req as any).user;
 
+        // 🧾 Get the order
         const orderQuery = await pool.query(
             "SELECT * FROM orders WHERE order_id = $1",
             [order_id]
@@ -72,19 +72,32 @@ export const getOrderDetails = async (req: Request, res: Response, next: NextFun
 
         const order = orderQuery.rows[0];
 
+        // 🚫 Ensure user is authorized
         if (!user.is_admin && order.user_id !== user.user_id) {
             return next(new ApiError(RESPONSE_MESSAGES.ORDER.UNAUTHORIZED, 403));
         }
 
+        // 📦 Get order items with product details and main image
         const itemsQuery = await pool.query(
-            `SELECT 
+            `
+            SELECT 
                 oi.order_item_id,
                 oi.product_id,
-                oi.variant_id,
                 oi.quantity,
-                oi.price
-             FROM order_items oi
-             WHERE oi.order_id = $1`,
+                oi.price,
+                p.name AS product_name,
+                p.description AS product_description,
+                (
+                    SELECT pi.image_url
+                    FROM product_images pi
+                    WHERE pi.product_id = p.product_id
+                    ORDER BY pi.is_main DESC, pi.image_id ASC
+                    LIMIT 1
+                ) AS main_image
+            FROM order_items oi
+            JOIN products p ON oi.product_id = p.product_id
+            WHERE oi.order_id = $1
+            `,
             [order_id]
         );
 
@@ -104,6 +117,7 @@ export const getOrderDetailsAdmin = async (req: Request, res: Response, next: Ne
     try {
         const { order_id } = req.params;
 
+        // 🧾 Get the order
         const orderQuery = await pool.query(
             "SELECT * FROM orders WHERE order_id = $1",
             [order_id]
@@ -115,15 +129,27 @@ export const getOrderDetailsAdmin = async (req: Request, res: Response, next: Ne
 
         const order = orderQuery.rows[0];
 
+        // 📦 Get order items with product details and main image
         const itemsQuery = await pool.query(
-            `SELECT 
+            `
+            SELECT 
                 oi.order_item_id,
                 oi.product_id,
-                oi.variant_id,
                 oi.quantity,
-                oi.price
-             FROM order_items oi
-             WHERE oi.order_id = $1`,
+                oi.price,
+                p.name AS product_name,
+                p.description AS product_description,
+                (
+                    SELECT pi.image_url
+                    FROM product_images pi
+                    WHERE pi.product_id = p.product_id
+                    ORDER BY pi.is_main DESC, pi.image_id ASC
+                    LIMIT 1
+                ) AS main_image
+            FROM order_items oi
+            JOIN products p ON oi.product_id = p.product_id
+            WHERE oi.order_id = $1
+            `,
             [order_id]
         );
 
