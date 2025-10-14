@@ -61,7 +61,7 @@ export async function loginGoogle(req: Request, res: Response, next: NextFunctio
             process.env.JWT_SECRET || "secret",
             { expiresIn: "1d" }
         );
-        res.redirect(`https://ecommerce-api-sql-node-ts.vercel.app/login/success?token=${token}`);
+        res.redirect(`https://shop-ecommerce-one-alpha.vercel.app/login/success?token=${token}`);
         //res.json({ message: RESPONSE_MESSAGES.AUTH.LOGIN_SUCCESS, data: { user, token } });
 
     } catch (err: any) {
