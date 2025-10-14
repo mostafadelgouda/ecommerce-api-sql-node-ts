@@ -19,10 +19,13 @@ import cors from "cors";
 const app = express();
 app.use(
     cors({
-        origin: ["http://localhost:4200"], // allowed frontend URLs "https://your-angular-deployed-url.com"
+        origin: [
+            "http://localhost:4200",
+            "https://shop-ecommerce-one-alpha.vercel.app" // ✅ deployed frontend
+        ],
         methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
         allowedHeaders: ["Content-Type", "Authorization"],
-        credentials: true, // if you send cookies or authorization headers
+        credentials: true, // if you're using cookies or authorization headers
     })
 );
 
