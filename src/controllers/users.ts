@@ -58,7 +58,7 @@ export async function loginGoogle(req: Request, res: Response, next: NextFunctio
         const user = req.user as any;
         const token = jwt.sign(
             { user_id: user.id, email: user.email },
-            process.env.JWT_SECRET || "secret",
+            process.env.JWT_SECRET!,
             { expiresIn: "1d" }
         );
         res.redirect(`https://shop-ecommerce-one-alpha.vercel.app/home?token=${token}`);
