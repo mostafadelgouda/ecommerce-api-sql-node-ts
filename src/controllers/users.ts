@@ -57,7 +57,7 @@ export async function loginGoogle(req: Request, res: Response, next: NextFunctio
     try {
         const user = req.user as any;
         const token = jwt.sign(
-            { id: user.id, email: user.email },
+            { user_id: user.id, email: user.email },
             process.env.JWT_SECRET || "secret",
             { expiresIn: "1d" }
         );

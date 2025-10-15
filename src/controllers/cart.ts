@@ -72,29 +72,62 @@ const fetchUserCart = async (user_id: string) => {
 export const addToCart = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const user = (req as any).user;
-        const { product_id } = req.body;
-        const quantity = req.body.quantity || 1
-        if (!product_id || !quantity) {
-            return next(new ApiError("Product ID and quantity are required", 400));
+        const { product_id, quantity } = req.body;
+
+        // check if product exists
+        const productQuery = await pool.query(
+            "SELECT price FROM products WHERE product_id = $1",
+            [product_id]
+        );
+        if (productQuery.rows.length === 0) {
+            return res.status(404).json({ message: "Product not found" });
         }
 
-        const result = await pool.query(
-            `INSERT INTO cart_items (user_id, product_id, quantity)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (user_id, product_id)
-             DO UPDATE SET quantity = cart_items.quantity + EXCLUDED.quantity
-             RETURNING *`,
-            [user.user_id, product_id, quantity]
+        const productPrice = productQuery.rows[0].price;
+
+        // check if item already in cart
+        const existingItem = await pool.query(
+            "SELECT * FROM cart WHERE user_id = $1 AND product_id = $2",
+            [user.id, product_id]
         );
 
-        res.status(201).json({
-            message: RESPONSE_MESSAGES.CART.ADDED,
-            data: result.rows[0],
+        if (existingItem.rows.length > 0) {
+            await pool.query(
+                "UPDATE cart SET quantity = quantity + $1 WHERE user_id = $2 AND product_id = $3",
+                [quantity, user.id, product_id]
+            );
+        } else {
+            await pool.query(
+                "INSERT INTO cart (user_id, product_id, quantity) VALUES ($1, $2, $3)",
+                [user.id, product_id, quantity]
+            );
+        }
+
+        // fetch updated cart details
+        const cartItems = await pool.query(
+            `SELECT c.cart_id, c.product_id, c.quantity, p.name, p.price, p.main_image
+       FROM cart c 
+       JOIN products p ON c.product_id = p.product_id
+       WHERE c.user_id = $1`,
+            [user.id]
+        );
+
+        // calculate totals
+        const totalQuantity = cartItems.rows.reduce((acc, item) => acc + item.quantity, 0);
+        const totalPrice = cartItems.rows.reduce((acc, item) => acc + item.quantity * item.price, 0);
+
+        res.status(200).json({
+            message: "Item added to cart",
+            totalQuantity,
+            totalPrice,
+            itemsCount: cartItems.rows.length,
+            cart: cartItems.rows,
         });
-    } catch (err: any) {
-        return next(new ApiError(err.message, err.statusCode || 500));
+    } catch (error) {
+        next(error);
     }
 };
+
 
 // ✅ Get Cart (no variants)
 export const getCart = async (req: Request, res: Response, next: NextFunction) => {

@@ -15,7 +15,9 @@ export const isAuthenticated = (req: Request, res: Response, next: NextFunction)
 
     const token = authHeader.split(" ")[1] || "invalid token";
     try {
+        console.log(token);
         const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as JwtPayload;
+        console.log(decoded);
         (req as any).user = decoded;
         next();
     } catch (err: any) {
