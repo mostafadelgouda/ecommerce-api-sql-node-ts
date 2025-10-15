@@ -53,6 +53,7 @@ export async function login(req: Request, res: Response, next: NextFunction) {
         return next(new ApiError(err.message, err.statusCode));
     }
 }
+
 export async function loginGoogle(req: Request, res: Response, next: NextFunction) {
     try {
         const user = req.user as any;
@@ -81,7 +82,9 @@ export async function loginGoogle(req: Request, res: Response, next: NextFunctio
         );
 
         // Send to frontend
-        res.redirect(`https://shop-ecommerce-one-alpha.vercel.app/home?token=${token}`);
+        res.redirect(`https://shop-ecommerce-one-alpha.vercel.app/home?token=${encodeURIComponent(token)}`);
+
+        //res.redirect(`https://shop-ecommerce-one-alpha.vercel.app/home?token=${token}`);
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode));
     }

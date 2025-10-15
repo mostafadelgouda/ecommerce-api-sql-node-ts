@@ -3,6 +3,16 @@ import pool from "../config/db.js";
 import ApiError from "../utils/apiError.js";
 import { RESPONSE_MESSAGES } from "../constants/responseMessages.js";
 
+const getWishlistCount = async (user_id: string) => {
+    const countRes = await pool.query(
+        `SELECT COALESCE(COUNT(*), 0) AS total
+         FROM wishlist_items
+         WHERE user_id = $1`,
+        [user_id]
+    );
+    return Number(countRes.rows[0]?.total ?? 0);
+};
+
 export const addToWishlist = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { product_id } = req.body;
@@ -21,11 +31,21 @@ export const addToWishlist = async (req: Request, res: Response, next: NextFunct
             [user_id, product_id]
         );
 
+        // always return the current count after the operation
+        const total_items = await getWishlistCount(user_id);
+
         if (result.rows.length === 0) {
-            return res.json({ message: RESPONSE_MESSAGES.WISHLIST.ALREADY_EXISTS });
+            return res.json({
+                message: RESPONSE_MESSAGES.WISHLIST.ALREADY_EXISTS,
+                total_items,
+            });
         }
 
-        res.status(201).json({ message: RESPONSE_MESSAGES.WISHLIST.ADDED, data: result.rows[0] });
+        res.status(201).json({
+            message: RESPONSE_MESSAGES.WISHLIST.ADDED,
+            data: result.rows[0],
+            total_items,
+        });
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode || 500));
     }
@@ -69,7 +89,6 @@ export const getWishlist = async (req: Request, res: Response, next: NextFunctio
     }
 };
 
-
 export const removeFromWishlist = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { wishlist_item_id } = req.params;
@@ -110,16 +129,18 @@ export const removeFromWishlist = async (req: Request, res: Response, next: Next
             [user_id]
         );
 
+        const total_items = wishlistResult.rows.length;
+
         res.json({
             message: RESPONSE_MESSAGES.WISHLIST.REMOVED,
-            data: wishlistResult.rows
+            total_items,
+            data: wishlistResult.rows,
         });
 
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode || 500));
     }
 };
-
 
 export const clearWishlist = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -136,10 +157,19 @@ export const clearWishlist = async (req: Request, res: Response, next: NextFunct
         );
 
         if (result.rows.length === 0) {
-            return res.json({ message: RESPONSE_MESSAGES.WISHLIST.ALREADY_EMPTY });
+            // still return the count (0) for consistency
+            return res.json({
+                message: RESPONSE_MESSAGES.WISHLIST.ALREADY_EMPTY,
+                total_items: 0,
+                data: [],
+            });
         }
 
-        res.json({ message: RESPONSE_MESSAGES.WISHLIST.CLEARED, data: [] });
+        res.json({
+            message: RESPONSE_MESSAGES.WISHLIST.CLEARED,
+            total_items: 0,
+            data: [],
+        });
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode || 500));
     }
