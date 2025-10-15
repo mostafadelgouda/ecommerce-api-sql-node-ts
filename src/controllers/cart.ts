@@ -3,7 +3,6 @@ import pool from "../config/db.js";
 import ApiError from "../utils/apiError.js";
 import { RESPONSE_MESSAGES } from "../constants/responseMessages.js";
 
-
 const fetchUserCart = async (user_id: string) => {
     const result = await pool.query(
         `SELECT 
@@ -68,66 +67,99 @@ const fetchUserCart = async (user_id: string) => {
         data: cartWithDiscounts,
     };
 };
-// ✅ Add to Cart (already correct)
-export const addToCart = async (req: Request, res: Response, next: NextFunction) => {
+
+// helper: returns number of items in cart (sum of quantities)
+const getCartItemsCount = async (user_id: string) => {
+    const res = await pool.query(
+        `SELECT COALESCE(SUM(quantity), 0) AS total
+         FROM cart_items
+         WHERE user_id = $1`,
+        [user_id]
+    );
+    return Number(res.rows[0]?.total ?? 0);
+};
+
+// Middleware you can mount globally to inject cart count into res.locals
+export const injectCartCount = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const user = (req as any).user;
-        const { product_id, quantity } = req.body;
-
-        // check if product exists
-        const productQuery = await pool.query(
-            "SELECT price FROM products WHERE product_id = $1",
-            [product_id]
-        );
-        if (productQuery.rows.length === 0) {
-            return res.status(404).json({ message: "Product not found" });
+        if (!user) {
+            res.locals.cart_items_count = 0;
+            return next();
         }
-
-        const productPrice = productQuery.rows[0].price;
-
-        // check if item already in cart
-        const existingItem = await pool.query(
-            "SELECT * FROM cart WHERE user_id = $1 AND product_id = $2",
-            [user.id, product_id]
-        );
-
-        if (existingItem.rows.length > 0) {
-            await pool.query(
-                "UPDATE cart SET quantity = quantity + $1 WHERE user_id = $2 AND product_id = $3",
-                [quantity, user.id, product_id]
-            );
-        } else {
-            await pool.query(
-                "INSERT INTO cart (user_id, product_id, quantity) VALUES ($1, $2, $3)",
-                [user.id, product_id, quantity]
-            );
-        }
-
-        // fetch updated cart details
-        const cartItems = await pool.query(
-            `SELECT c.cart_id, c.product_id, c.quantity, p.name, p.price, p.main_image
-       FROM cart c 
-       JOIN products p ON c.product_id = p.product_id
-       WHERE c.user_id = $1`,
-            [user.id]
-        );
-
-        // calculate totals
-        const totalQuantity = cartItems.rows.reduce((acc, item) => acc + item.quantity, 0);
-        const totalPrice = cartItems.rows.reduce((acc, item) => acc + item.quantity * item.price, 0);
-
-        res.status(200).json({
-            message: "Item added to cart",
-            totalQuantity,
-            totalPrice,
-            itemsCount: cartItems.rows.length,
-            cart: cartItems.rows,
-        });
-    } catch (error) {
-        next(error);
+        const count = await getCartItemsCount(user.user_id);
+        res.locals.cart_items_count = count;
+        return next();
+    } catch (err: any) {
+        // don't break the request if cart count fails; set 0 and continue
+        res.locals.cart_items_count = 0;
+        return next();
     }
 };
 
+// ✅ Add to Cart (no variants)
+export const addToCart = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const user = (req as any).user;
+        const { product_id, quantity: rawQuantity } = req.body;
+
+        // default quantity = 1 if not provided
+        const quantity = rawQuantity == null ? 1 : Number(rawQuantity);
+
+        // ensure product exists
+        const productRes = await pool.query(
+            `SELECT product_id FROM products WHERE product_id = $1`,
+            [product_id]
+        );
+
+        if (productRes.rows.length === 0) {
+            return next(new ApiError(RESPONSE_MESSAGES.PRODUCT.NOT_FOUND || 'Product not found', 404));
+        }
+
+        // check if cart item already exists for this user & product
+        const existingRes = await pool.query(
+            `SELECT cart_item_id, quantity
+             FROM cart_items
+             WHERE user_id = $1 AND product_id = $2
+             LIMIT 1`,
+            [user.user_id, product_id]
+        );
+
+        if (existingRes.rows.length > 0) {
+            const existing = existingRes.rows[0];
+            const newQty = Number(existing.quantity) + Number(quantity);
+
+            await pool.query(
+                `UPDATE cart_items
+                 SET quantity = $1, added_at = NOW()
+                 WHERE cart_item_id = $2`,
+                [newQty, existing.cart_item_id]
+            );
+        } else {
+            await pool.query(
+                `INSERT INTO cart_items (user_id, product_id, quantity, added_at)
+                 VALUES ($1, $2, $3, NOW())`,
+                [user.user_id, product_id, quantity]
+            );
+        }
+
+        // Return updated cart (reuses your helper which applies discounts and totals)
+        const cart = await fetchUserCart(user.user_id);
+
+        const MESSAGE = RESPONSE_MESSAGES.CART.ADDED;
+
+        // include explicit cart_items_count for clients expecting it
+        res.json({
+            message: MESSAGE,
+            total_quantity: cart.total_quantity,
+            total_price: cart.total_price,
+            cart_items_count: cart.total_quantity,
+            data: cart.data,
+        });
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode || 500));
+    }
+};
 
 // ✅ Get Cart (no variants)
 export const getCart = async (req: Request, res: Response, next: NextFunction) => {
@@ -197,17 +229,19 @@ export const getCart = async (req: Request, res: Response, next: NextFunction) =
             0
         );
 
+        const rounded_total_price = Math.round(total_price * 100) / 100;
+
         res.json({
             message: RESPONSE_MESSAGES.CART.RETRIEVED,
             total_quantity,
-            total_price: Math.round(total_price * 100) / 100,
+            total_price: rounded_total_price,
+            cart_items_count: total_quantity,
             data: cartWithDiscounts,
         });
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode || 500));
     }
 };
-
 
 // ✅ Update Cart Item
 export const updateCartItem = async (req: Request, res: Response, next: NextFunction) => {
@@ -252,7 +286,10 @@ export const updateCartItem = async (req: Request, res: Response, next: NextFunc
 
         res.json({
             message: RESPONSE_MESSAGES.CART.UPDATED,
-            ...cart,
+            total_quantity: cart.total_quantity,
+            total_price: cart.total_price,
+            cart_items_count: cart.total_quantity,
+            data: cart.data,
         });
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode || 500));
@@ -281,7 +318,10 @@ export const removeCartItem = async (req: Request, res: Response, next: NextFunc
 
         res.json({
             message: RESPONSE_MESSAGES.CART.REMOVED,
-            ...cart,
+            total_quantity: cart.total_quantity,
+            total_price: cart.total_price,
+            cart_items_count: cart.total_quantity,
+            data: cart.data,
         });
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode || 500));
@@ -303,6 +343,7 @@ export const clearCart = async (req: Request, res: Response, next: NextFunction)
             message: RESPONSE_MESSAGES.CART.CLEARED,
             total_quantity: 0,
             total_price: 0,
+            cart_items_count: 0,
             data: [],
         });
     } catch (err: any) {

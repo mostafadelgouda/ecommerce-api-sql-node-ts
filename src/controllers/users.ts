@@ -56,7 +56,7 @@ export async function login(req: Request, res: Response, next: NextFunction) {
 export async function loginGoogle(req: Request, res: Response, next: NextFunction) {
     try {
         const user = req.user as any;
-
+        console.log(user);
         // Extract correct email from Google data
         const email = user.email || user.emails?.[0]?.value;
 
