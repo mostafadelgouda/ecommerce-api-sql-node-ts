@@ -56,19 +56,36 @@ export async function login(req: Request, res: Response, next: NextFunction) {
 export async function loginGoogle(req: Request, res: Response, next: NextFunction) {
     try {
         const user = req.user as any;
+
+        // Extract correct email from Google data
+        const email = user.email || user.emails?.[0]?.value;
+
+        // Optional: Save user to DB if not exists (recommended)
+        const existing = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+        let user_id;
+
+        if (existing.rows.length > 0) {
+            user_id = existing.rows[0].user_id;
+        } else {
+            const inserted = await pool.query(
+                "INSERT INTO users (email, name) VALUES ($1, $2) RETURNING user_id",
+                [email, user.displayName || "Google User"]
+            );
+            user_id = inserted.rows[0].user_id;
+        }
+
         const token = jwt.sign(
-            { user_id: user.id, email: user.email },
-            process.env.JWT_SECRET!,
+            { user_id, email },
+            process.env.JWT_SECRET!, // ✅ same secret
             { expiresIn: "1d" }
         );
-        res.redirect(`https://shop-ecommerce-one-alpha.vercel.app/home?token=${token}`);
-        //res.json({ message: RESPONSE_MESSAGES.AUTH.LOGIN_SUCCESS, data: { user, token } });
 
+        // Send to frontend
+        res.redirect(`https://shop-ecommerce-one-alpha.vercel.app/home?token=${token}`);
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode));
     }
 }
-
 
 export async function getUserDetails(req: Request, res: Response, next: NextFunction) {
     try {
