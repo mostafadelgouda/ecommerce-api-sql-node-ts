@@ -411,7 +411,7 @@ router.post(
 
                 // Update order status to paid
                 await client.query(
-                    `UPDATE orders SET status = $1, paid_at = NOW() WHERE order_id = $2`,
+                    `UPDATE orders SET status = $1 WHERE order_id = $2`,
                     ["paid", order.order_id]
                 );
 
