@@ -421,13 +421,13 @@ router.post(
                     [order.order_id]
                 );
 
-                for (const it of orderItems) {
-                    // update product stock (if you track stock)
-                    await client.query(
-                        `UPDATE products SET stock = GREATEST(stock - $1, 0), sold = COALESCE(sold,0) + $1 WHERE product_id = $2`,
-                        [it.quantity, it.product_id]
-                    );
-                }
+                // for (const it of orderItems) {
+                //     // update product stock (if you track stock)
+                //     await client.query(
+                //         `UPDATE products SET stock = GREATEST(stock - $1, 0), sold = COALESCE(sold,0) + $1 WHERE product_id = $2`,
+                //         [it.quantity, it.product_id]
+                //     );
+                // }
 
                 // Clear cart for this user (so user doesn't have duplicate items)
                 if (userId) {
