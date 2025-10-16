@@ -208,7 +208,7 @@ router.post(
         JOIN products p ON c.product_id = p.product_id
         WHERE c.user_id = $1
       `;
-            const { rows: cartItems } = await pool.query(cartQuery, [userId]);
+            const { rows: cartItems } = await client.query(cartQuery, [userId]);
 
             if (cartItems.length === 0) {
                 return next(new ApiError("Cart is empty", 400));
@@ -217,7 +217,7 @@ router.post(
             // Apply discounts and compute final_price (in cents) for Stripe
             const enrichedItems = await Promise.all(
                 cartItems.map(async (item: any) => {
-                    const saleRes = await pool.query(
+                    const saleRes = await client.query(
                         `
             SELECT discount_percent
             FROM sale_items
@@ -243,7 +243,7 @@ router.post(
                 })
             );
 
-            // Build Stripe session line items
+            // Build Stripe line_items
             const line_items = enrichedItems.map((item: any) => ({
                 price_data: {
                     currency: "usd",
@@ -253,49 +253,35 @@ router.post(
                 quantity: item.quantity,
             }));
 
-            // Compute total amount in cents (sum of unit * qty)
+            // Compute total amount in cents
             const totalCents = enrichedItems.reduce(
                 (acc: number, it: any) => acc + it.final_price_cents * it.quantity,
                 0
             );
 
-            // Create stripe checkout session
-            const session = await stripe.checkout.sessions.create({
-                payment_method_types: ["card"],
-                mode: "payment",
-                line_items,
-                success_url: `${process.env.CLIENT_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-                cancel_url: `${process.env.CLIENT_URL}/cancel`,
-                metadata: { user_id: userId.toString() },
-            });
-
-            // Create order + order_items in DB with status 'pending' and link stripe_session_id
-            // Use transaction to keep consistency
+            // 1) Create DB order + order_items first (status = 'pending')
+            let orderId: number;
             try {
                 await client.query("BEGIN");
 
                 const insertOrderText = `
-          INSERT INTO orders (user_id, total_amount, status, stripe_session_id)
-          VALUES ($1, $2, $3, $4)
+          INSERT INTO orders (user_id, total_amount, status)
+          VALUES ($1, $2, $3)
           RETURNING order_id
         `;
-                // store total in dollars (or your preferred currency unit)
                 const totalDollars = totalCents / 100;
                 const { rows: orderRows } = await client.query(insertOrderText, [
                     userId,
                     totalDollars,
                     "pending",
-                    session.id,
                 ]);
-                const orderId = orderRows[0].order_id;
+                orderId = orderRows[0].order_id;
 
                 const insertItemText = `
           INSERT INTO order_items (order_id, product_id, quantity, price)
           VALUES ($1, $2, $3, $4)
         `;
-
                 for (const it of enrichedItems) {
-                    // store price in the same unit as orders (dollars)
                     await client.query(insertItemText, [
                         orderId,
                         it.product_id,
@@ -308,14 +294,58 @@ router.post(
             } catch (dbErr) {
                 await client.query("ROLLBACK");
                 console.error("DB error while creating pending order:", dbErr);
-                // optionally: you might want to cancel the session if order creation fails
                 return next(new ApiError("Failed to create pending order", 500));
             }
 
+            // 2) Create Stripe session and include orderId in metadata & success_url
+            let session: Stripe.Checkout.Session;
+            try {
+                session = await stripe.checkout.sessions.create({
+                    payment_method_types: ["card"],
+                    mode: "payment",
+                    line_items,
+                    // redirect the user to receipt page including order id
+                    success_url: `${process.env.CLIENT_URL}/receipt?order_id=${orderId}`,
+                    cancel_url: `${process.env.CLIENT_URL}/cancel`,
+                    metadata: {
+                        user_id: userId.toString(),
+                        order_id: orderId.toString(),
+                    },
+                });
+            } catch (stripeErr: any) {
+                console.error("Stripe session creation failed:", stripeErr);
+
+                // Cleanup: remove the orphan pending order and its items (optional)
+                try {
+                    await client.query("BEGIN");
+                    await client.query(`DELETE FROM order_items WHERE order_id = $1`, [orderId]);
+                    await client.query(`DELETE FROM orders WHERE order_id = $1`, [orderId]);
+                    await client.query("COMMIT");
+                } catch (cleanupErr) {
+                    await client.query("ROLLBACK");
+                    console.error("Failed to cleanup orphan order after stripe error:", cleanupErr);
+                }
+
+                return next(new ApiError("Failed to create checkout session", 500));
+            }
+
+            // 3) Update order with stripe_session_id (best-effort)
+            try {
+                await client.query(
+                    `UPDATE orders SET stripe_session_id = $1 WHERE order_id = $2`,
+                    [session.id, orderId]
+                );
+            } catch (updErr) {
+                console.error("Failed to update order with stripe session id:", updErr);
+                // Not fatal for stripe flow; continue and return session url and orderId
+            }
+
+            // Return the session url and the order id so frontend can track it
             res.json({
                 message: RESPONSE_MESSAGES.PAY.SESSION_CREATED,
                 url: session.url,
                 sessionId: session.id,
+                orderId, // <- added order id here
             });
         } catch (err: any) {
             return next(new ApiError(err.message, err.statusCode || 500));
@@ -324,6 +354,7 @@ router.post(
         }
     }
 );
+
 router.post(
     "/webhook",
     express.raw({ type: "application/json" }),
