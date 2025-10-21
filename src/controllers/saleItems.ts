@@ -62,16 +62,34 @@ export const createSaleItem = async (req: Request, res: Response, next: NextFunc
         await pool.query("DELETE FROM sale_items WHERE product_id = $1", [product_id]);
 
         // 2. Insert the new sale item
-        const result = await pool.query(
+        await pool.query(
             `INSERT INTO sale_items (product_id, discount_percent, start_date, end_date)
-             VALUES ($1, $2, $3, $4)
-             RETURNING *`,
+             VALUES ($1, $2, $3, $4)`,
             [product_id, discount_percent, start_date, end_date]
         );
 
+        // 3. Fetch all sale items (similar to getSaleItems)
+        const page = 1;
+        const limit = 10;
+
+        const result = await getItemsWithFilters(
+            "sale_items",
+            {}, // no filters — get all
+            page,
+            limit,
+            "created_at",
+            "DESC"
+        );
+
+        const enrichedSaleItems = await enrichSaleItems(result.data);
+
+        // 4. Return all sale items (same structure as getSaleItems)
         res.status(201).json({
             message: RESPONSE_MESSAGES.SALE_ITEM.CREATED,
-            data: result.rows[0]
+            page,
+            total_items: result.number_of_items,
+            limit,
+            data: enrichedSaleItems,
         });
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode || 500));
@@ -154,21 +172,26 @@ export const updateSaleItem = async (req: Request, res: Response, next: NextFunc
             return next(new ApiError(RESPONSE_MESSAGES.SALE_ITEM.NOT_FOUND, 404));
         }
 
-        // Get all sale items (after update)
-        const allItems = await pool.query(`SELECT * FROM sale_items ORDER BY created_at DESC`);
-        const enrichedItems = await enrichSaleItems(allItems.rows);
+        // Fetch all sale items
+        const page = 1;
+        const limit = 10;
+        const allItems = await getItemsWithFilters("sale_items", {}, page, limit, "created_at", "DESC");
+        const enrichedItems = await enrichSaleItems(allItems.data);
 
         res.json({
             message: RESPONSE_MESSAGES.SALE_ITEM.UPDATED,
             updated: (await enrichSaleItems(result.rows))[0],
-            data: enrichedItems
+            page,
+            total_items: allItems.number_of_items,
+            limit,
+            data: enrichedItems,
         });
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode || 500));
     }
 };
 
-// Delete sale item
+// 🔴 Delete sale item
 export const deleteSaleItem = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
@@ -182,14 +205,18 @@ export const deleteSaleItem = async (req: Request, res: Response, next: NextFunc
             return next(new ApiError(RESPONSE_MESSAGES.SALE_ITEM.NOT_FOUND, 404));
         }
 
-        // Get all remaining sale items
-        const allItems = await pool.query(`SELECT * FROM sale_items ORDER BY created_at DESC`);
-        const enrichedItems = await enrichSaleItems(allItems.rows);
+        const page = 1;
+        const limit = 10;
+        const allItems = await getItemsWithFilters("sale_items", {}, page, limit, "created_at", "DESC");
+        const enrichedItems = await enrichSaleItems(allItems.data);
 
         res.json({
             message: RESPONSE_MESSAGES.SALE_ITEM.DELETED,
             deleted: (await enrichSaleItems(result.rows))[0],
-            data: enrichedItems
+            page,
+            total_items: allItems.number_of_items,
+            limit,
+            data: enrichedItems,
         });
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode || 500));
