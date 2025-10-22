@@ -406,3 +406,16 @@ export const deleteProductImage = async (req: Request, res: Response, next: Next
         return next(new ApiError(err.message, err.statusCode));
     }
 };
+export const getProductsCount = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const result = await pool.query("SELECT COUNT(*) AS total_products FROM products");
+        const total = parseInt(result.rows[0].total_products, 10);
+
+        res.json({
+            message: "Total number of products retrieved successfully",
+            total_products: total,
+        });
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode || 500));
+    }
+};

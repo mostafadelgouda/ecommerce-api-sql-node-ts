@@ -20,9 +20,9 @@ import {
     productIdParamValidator,
     productImageIdParamValidator,
 } from "../validators/productValidators.js";
-
+import { getProductsCount } from "../controllers/products.js";
 const router = Router();
-
+router.get("/count", getProductsCount);
 router.post("/", isAdmin, createProductValidator, validateRequest, createProduct);
 router.get("/", getProducts);
 router.get("/:id", productIdParamValidator, validateRequest, getProductById);
@@ -32,5 +32,6 @@ router.delete("/:id", isAdmin, productIdParamValidator, validateRequest, deleteP
 router.post("/:product_id/images", isAdmin, addProductImageValidator, validateRequest, addProductImage);
 router.get("/:product_id/images", productIdParamValidator, validateRequest, getProductImages);
 router.delete("/images/:image_id", isAdmin, productImageIdParamValidator, validateRequest, deleteProductImage);
+
 
 export default router;
