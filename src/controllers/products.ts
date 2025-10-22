@@ -414,6 +414,7 @@ export const getProductsCount = async (req: Request, res: Response, next: NextFu
         res.json({
             message: "Total number of products retrieved successfully",
             total_products: total,
+            number_of_pages: Math.ceil(total / 20),
         });
     } catch (err: any) {
         return next(new ApiError(err.message, err.statusCode || 500));
