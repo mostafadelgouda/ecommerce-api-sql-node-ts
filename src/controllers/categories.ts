@@ -67,6 +67,24 @@ export const getCategoryById = async (req: Request, res: Response, next: NextFun
     }
 };
 
+export const getCategoryBySlug = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { slug } = req.params;
+        const result = await pool.query("SELECT * FROM categories WHERE slug = $1", [slug]);
+
+        if (result.rows.length === 0) {
+            return next(new ApiError(RESPONSE_MESSAGES.CATEGORY.NOT_FOUND, 404));
+        }
+
+        res.json({
+            message: RESPONSE_MESSAGES.CATEGORY.RETRIEVED,
+            data: result.rows[0],
+        });
+    } catch (err: any) {
+        return next(new ApiError(err.message, err.statusCode || 500));
+    }
+};
+
 export const updateCategory = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
