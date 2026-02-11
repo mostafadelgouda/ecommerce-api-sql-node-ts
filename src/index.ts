@@ -22,7 +22,8 @@ app.use(
         origin: [
             "http://localhost:4200",
             "https://shop-ecommerce-one-alpha.vercel.app", // ✅ deployed frontend
-            "https://shop-ecommerce-tawny.vercel.app"
+            "https://shop-ecommerce-tawny.vercel.app",
+            "http://localhost:3000"
         ],
         methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
         allowedHeaders: ["Content-Type", "Authorization"],
